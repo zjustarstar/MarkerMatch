@@ -14,17 +14,101 @@ using namespace cv;
 #pragma comment(lib,"opencv_world400.lib")
 #endif
 
+void FindTextArea(Mat srcImg) {
+	Mat gray;
+	cvtColor(srcImg, gray, CV_BGR2GRAY);
+
+	Mat grad_x, grad_y, grad;
+	Mat abs_grad_x, abs_grad_y;
+
+	int scale = 1;
+	int delta = 0;
+	int ddepth = CV_16S;
+	/// 求 X方向梯度
+	Sobel(gray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT);
+	/// 求 Y方向梯度
+	Sobel(gray, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT);
+
+	convertScaleAbs(grad_x, abs_grad_x);
+	convertScaleAbs(grad_y, abs_grad_y);
+	addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad);
+
+	imwrite("d:\\grad.jpg", grad);
+
+	Mat bimg;
+	threshold(grad, bimg, 0, 255, THRESH_OTSU);
+	imwrite("d:\\bimg.jpg", bimg);
+
+	//找阶跃点;
+	int h = bimg.rows;
+	int w = bimg.cols;
+	int * nHist = new int[w];
+	memset(nHist, 0, sizeof(int)*w);
+	for (int r = 0; r < h-1; r++)
+	{
+		//uchar* pdata = img.ptr<uchar>(r);
+		for (int c = 0; c < w; c++)
+		{
+			char v1 = bimg.at<char>(r, c);
+			char v2 = bimg.at<char>(r + 1, c);
+			if (v1 != v2)
+				nHist[c]++;
+		}
+	}
+
+	int nThre = 8*2;  //出现的字符个数(阶跃数)
+	int nTextWidThre = 100;
+	vector<int> vecLoc;
+	for (int i = 0; i < w-1;)
+	{
+		bool b1 = (nHist[i]>nThre);   //左空右边缘;
+		if (nHist[i] > nThre) {
+			int nStart = i;
+			while (nHist[i++] > nThre);
+			if ((i - nStart) > nTextWidThre)
+			{
+				vecLoc.push_back(nStart);
+				vecLoc.push_back(i);
+			}
+		}
+		else
+			i++;
+	}
+
+	for (int i = 0; i < vecLoc.size(); i++)
+	{
+		Point pt = cvPoint(vecLoc[i], 0);
+		Point pb = cvPoint(vecLoc[i], h - 1);
+		line(srcImg, pt, pb, Scalar(0, 0, 255), 4);
+	}
+	
+	imwrite("d:\\res.jpg", srcImg);
+}
+
 bool FindOuterMarker(Mat srcImg, Mat tempImg) {
 
 }
 
 int main()
 {
-	string strSrcImg  = "E:\\MyProject\\MarkerMatch\\img\\20190419155752945_rotated.jpg";
-	string strTempImg = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\template\\temp1.jpg";
+	/*
+	string strSolidCross = "E:\\MyProject\\MarkerMatch\\template\\SolidCross4.jpg";
+	Mat scImg = imread(strSolidCross);
+	Mat scGrayImg;
+	cvtColor(scImg, scGrayImg, CV_BGR2GRAY);
+	Mat scBiImg;
+	threshold(scGrayImg, scBiImg, 0, 255, THRESH_OTSU);
+	imwrite("d:\\solidcross4_b.jpg", scBiImg);
+	*/
+	//E:\MyProject\MarkerMatch\数据\对位图像\2CW0026-3-1
+	//string strSrcImg = "E:\\MyProject\\MarkerMatch\\img\\20190419155800745_rotated.jpg";
+	string strSrcImg  = "E:\\MyProject\\MarkerMatch\\数据\\对位图像\\2SF0189-030APD1\\20190607144956654.jpg";
+	string strTempImg = "E:\\MyProject\\MarkerMatch\\template\\solidcross4_b.jpg";
 
 	Mat srcImg = imread(strSrcImg);
 	Mat tempImg = imread(strTempImg);
+
+	FindTextArea(srcImg);
 
 	Mat srcGrayImg;
 	Mat tempGrayImg;
