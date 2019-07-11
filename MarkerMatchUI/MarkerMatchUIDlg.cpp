@@ -193,6 +193,9 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		return;
 	}
 
+	string strTempImg = "E:\\MyProject\\MarkerMatch\\template\\solidcross4_b.jpg";
+	Mat tempImg = imread(strTempImg);
+
 	CString strFileName;
 	m_lbFiles.GetText(nCurIndex, strFileName);
 	strFileName = m_strFilePath + "\\" + strFileName;
@@ -200,9 +203,12 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 	Mat srcImg = imread(strFileName.GetBuffer(0));
 
 	Mat bImg;
-	vector<Point> vecLoc;
-	vector<Rect> vecRect;
-	CMarkerFinder::LocateMarkerArea(srcImg, vecRect);
+	vector<Rect> vecMakerAreaRect;
+	vector<Rect> vecMakerLoc;
+	vector<Rect> vecTempRect;
+	CMarkerFinder::LocateMarkerArea(srcImg, vecMakerAreaRect);
+	CMarkerFinder::LocateMarker_Fine(srcImg, tempImg, vecMakerAreaRect, vecMakerLoc);
+	//CMarkerFinder::LocateTemplate(srcImg, tempImg, 6, vecTempRect);
 
 	namedWindow("img", 0);
 	resizeWindow("img", 684, 456);

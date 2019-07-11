@@ -13,24 +13,148 @@ CMarkerFinder::~CMarkerFinder()
 
 }
 
+//在图中查找模板图片;
+//srcImg & tempImg: 原图和模板图;
+//nMaxCount: 图中最多可能存在的模板;
+//vecTempRect:返回值，表示找到的模板区域;
+bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, int nMaxCount, vector<Rect> & vecTempRect) {
+	
+	Mat srcGrayImg;
+	Mat tempGrayImg;
+	cvtColor(srcImg, srcGrayImg, CV_BGR2GRAY);
+	cvtColor(tempImg, tempGrayImg, CV_BGR2GRAY);
+
+	//对二值化图像进行匹配;
+	Mat srcBImg;
+	Mat resImg;
+	threshold(srcGrayImg, srcBImg, 0, 255, THRESH_OTSU);
+
+	matchTemplate(srcBImg, tempGrayImg, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+	//normalize(resImg, resImg, 0, 1, NORM_MINMAX);
+
+	double minValue, maxValue;
+	Point minLoc, maxLoc;
+	int nSpace = 25;
+
+	for (int i = 0; i < nMaxCount; i++)
+	{
+		minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+		if (maxValue < 0.7)
+			continue;
+		cout << "max_value= " << maxValue << endl;
+		cout << "maxLoc_x=" << maxLoc.x << ",maxLoc_y=" << maxLoc.y << endl;
+
+		int startX = maxLoc.x - nSpace;
+		int startY = maxLoc.y - nSpace;
+		int endX = maxLoc.x + nSpace;
+		int endY = maxLoc.y + nSpace;
+		if (startX<0 || startY < 0)
+		{
+			startX = 0;
+			startY = 0;
+		}
+		if (endX > resImg.cols - 1 || endY > resImg.rows - 1)
+		{
+			endX = resImg.cols - 1;
+			endY = resImg.rows - 1;
+		}
+
+		//将最高匹配点周围的数据都清空，以免下次匹配还是在附近：
+		Mat temp = Mat::zeros(endX - startX, endY - startY, CV_32FC1);
+		temp.copyTo(resImg(Rect(startX, startY, temp.cols, temp.rows)));
+
+		Rect k;
+		k.x = maxLoc.x;
+		k.y = maxLoc.y;
+		k.width = tempImg.cols;
+		k.height = tempImg.rows;
+		vecTempRect.push_back(k);
+	
+		rectangle(srcImg, k, Scalar(255, 0, 255), 8);
+		//显示maxvalue
+		char msg[10];
+		sprintf_s(msg, "%.1f", maxValue);
+		putText(srcImg, string(msg), cvPoint(k.x, k.y - 10), FONT_HERSHEY_PLAIN, 4, Scalar(255, 0, 255), 6);
+
+	}
+
+	return vecTempRect.size();
+}
+
+//精调-查找Marker;
+//srcImg:原图;
+//templateImg: 模板图;
+//vecMarkerAreaRect: maker的大致区域，非精细;
+//vecMarkerLoc:精确的Marker区域,输出参数;
+bool CMarkerFinder::LocateMarker_Fine(Mat srcImg, Mat templateImg,vector<Rect> vecMarkerAreaRect,
+	                                  vector<Rect> &vecMarkerLoc) 
+{
+	int nSize = vecMarkerAreaRect.size();
+	if (nSize == 0)
+		return false;
+
+	Mat grayTempImg;
+	cvtColor(templateImg, grayTempImg, CV_BGR2GRAY);
+	for (int i = 0; i < nSize; i++) {
+		Rect r = vecMarkerAreaRect[i];
+
+		//模板的大小必须比区域更小才能匹配;
+		if ((templateImg.rows > r.height) || (templateImg.cols > r.width))
+			continue;
+
+		Mat roiImg = srcImg(r);
+		Mat graySrcImg;
+		Mat BSrcImg;
+		cvtColor(roiImg, graySrcImg, CV_BGR2GRAY);
+		threshold(graySrcImg, BSrcImg, 0, 255, THRESH_OTSU);
+
+		//二值图像的匹配：
+		Mat resImg;
+		matchTemplate(BSrcImg, grayTempImg, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+		//normalize(resImg, resImg, 0, 1, NORM_MINMAX);
+
+		double minValue, maxValue;
+		Point minLoc, maxLoc;
+		minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+		//匹配度过小的不要;
+		if (maxValue < 0.5)
+			continue;
+
+		Rect k;
+		k.x = maxLoc.x + r.x;
+		k.y = maxLoc.y + r.y;
+		k.width = templateImg.cols;
+		k.height = templateImg.rows;
+		vecMarkerLoc.push_back(k);
+
+		//显示maxvalue
+		char msg[10];
+		sprintf_s(msg, "%.1f", maxValue);
+		putText(srcImg, string(msg), cvPoint(k.x, k.y - 10), FONT_HERSHEY_PLAIN, 4, Scalar(255, 0, 255), 6);
+	}
+
+	for (int j = 0; j < vecMarkerLoc.size(); j++)
+	{
+		rectangle(srcImg, vecMarkerLoc[j], Scalar(255, 0, 255), 8);
+	}
+}
+
 //查找marker区域;
 bool CMarkerFinder::LocateMarkerArea(Mat srcImg, vector<Rect> &vecMarkerRect) {
 	Mat bImg;
-	vector<Point> vecLoc;
+	vector<Rect> vecLoc;
 	int nDilateKernalSize = 5;
 
 	//先查找文字区域;
-	if (!LocateTextArea(srcImg, bImg, vecLoc))
+	LocTexParam struLTParam;
+	struLTParam.nStepCountThre = 3 * 2;
+	if (!LocateTextArea(srcImg, struLTParam, bImg, vecLoc))
 		return false;
 
 	//对每一组文字区域进行处理;
 	for (int i = 0; i < vecLoc.size();	i++)
 	{
-		Rect curR;
-		curR.x = vecLoc[i].x;
-		curR.width = vecLoc[i].y - vecLoc[i].x;
-		curR.y = 0;
-		curR.height = srcImg.rows;
+		Rect curR = vecLoc[i];
 
 		Mat roiImg = bImg(curR);
 
@@ -75,13 +199,13 @@ bool CMarkerFinder::LocateMarkerArea(Mat srcImg, vector<Rect> &vecMarkerRect) {
 			if (pHist[j] > 0) {
 				
 				nStart = j;
-				while (pHist[j++] && j<h);
+				while (pHist[j++] && j<h);  //查找白色区域;
 				 
 				//只选择有一定长度的区域;
 				int nLen = j - nStart+1;  //白色区域的长度;
-				if (nLen > 22 && nLen < 42 /*&& nContinusBlack>=2*/)  //之前的连续黑区域要有一定长度;
+				if (nLen > 22 && nLen < 42 )  //白色区域长度的限制;
 				{
-					t.y = nStart + nDilateKernalSize;
+					t.y = nStart + nDilateKernalSize;  //原始大小需要加上膨胀时的核大小;
 					t.height = nLen + 1 - nDilateKernalSize *2;
 					t.x = 0;
 					t.width = w;
@@ -91,7 +215,9 @@ bool CMarkerFinder::LocateMarkerArea(Mat srcImg, vector<Rect> &vecMarkerRect) {
 					t.y *= 8;
 					t.width *= 8;
 					t.height *= 8;
+					//加上ROI区域坐标;
 					t.x += curR.x;
+					t.y += curR.y;
 					vecMarkerRect.push_back(t);
 				}
 
@@ -103,6 +229,8 @@ bool CMarkerFinder::LocateMarkerArea(Mat srcImg, vector<Rect> &vecMarkerRect) {
 				nContinusBlack++;
 			}
 		}
+
+		delete[] pHist;
 	}
 
 	//在原图中标记文字区域;
@@ -115,12 +243,111 @@ bool CMarkerFinder::LocateMarkerArea(Mat srcImg, vector<Rect> &vecMarkerRect) {
 	return true;
 }
 
+//bImg:输入的二值图;
+//struLTParam:用于文字定位的参数;
+//nScale:原图的缩放比例;
+//查找文字区域的左右垂直边界
+void CMarkerFinder::FindTextCord(Mat bImg, LocTexParam struLTParam,vector<Rect> & vecRect) {
+
+	int h = bImg.rows;
+	int w = bImg.cols;
+
+	//垂直投影，找阶跃点;
+	int * nHist = new int[w];
+	memset(nHist, 0, sizeof(int)*w);
+	for (int r = 0; r < h - 1; r++)
+	{
+		//uchar* pdata = img.ptr<uchar>(r);
+		for (int c = 0; c < w; c++)
+		{
+			char v1 = bImg.at<char>(r, c);
+			char v2 = bImg.at<char>(r + 1, c);
+			if (v1 != v2)
+				nHist[c]++;
+		}
+	}
+
+	//查找条状文字区域,定位左右坐标;
+	int nExtend = 20;  //拓展20个像素;
+	int nStepThre = struLTParam.nStepCountThre;
+	int nTextWidThre = struLTParam.nTextBandWThre;
+	for (int i = 0; i < w - 1;)
+	{
+		//查找具有一定阶跃点的坐标;
+		if (nHist[i] > nStepThre) {
+			int nStart = i;
+			while (nHist[i++] > nStepThre);
+			if ((i - nStart) > nTextWidThre)
+			{
+				Rect rr; 
+				//左右边界;
+				int x1 = (nStart - nExtend) > 0 ? (nStart - nExtend) : 0;
+				int x2 = (i + nExtend) < w ? (i + nExtend) : (w - 1);
+
+				//高度默认为全图高度,上下边界稍后定位;
+				rr.x = x1;
+				rr.width = x2 - x1 + 1;
+				rr.y = 0;
+				rr.height = (h - 1);
+				vecRect.push_back(rr);
+			}
+		}
+		else
+			i++;
+	}
+
+	delete[] nHist;
+
+	//定位每个区域的上下边界;
+	for (int i = 0; i < vecRect.size(); i++)
+	{
+		Mat roiBImg = bImg(vecRect[i]);
+
+		int nRoiH = roiBImg.rows;
+		int nRoiW = roiBImg.cols;
+
+		int * pHHist = new int[h];
+		memset(pHHist, 0, sizeof(int)*h);
+		for (int r = 0; r < nRoiH - 1; r++)
+		{
+			for (int c = 0; c < nRoiW; c++)
+			{
+				char v1 = roiBImg.at<char>(r, c);
+				if (v1)
+					pHHist[r]++;
+			}
+		}
+
+		//分别从上到下记录第一个非零的位置;
+		int nTop = 0;
+		int nBottom=h-1;
+		while (pHHist[nTop++] == 0);
+		while (pHHist[nBottom--] == 0);
+
+		//稍微拓展下;
+		nTop = (nTop - nExtend) > 0 ? (nTop - nExtend) : 0;
+		nBottom = ((nBottom + nExtend) < h) ? (nBottom + nExtend) : (h - 1);
+		vecRect[i].y = nTop;
+		vecRect[i].height = nBottom - nTop;
+
+		delete[] pHHist;
+	}
+}
+
 //定位文字区域;
+//struLTParam: 文字定位时用的参数;
 //bImg:返回的二值图;
-//vecLoc:返回的文字区域，仅限横坐标;
-bool CMarkerFinder::LocateTextArea(Mat srcImg, Mat &bImg, vector<Point> & vecLoc) {
+//vecLoc:返回的文字区域区间，仅限横坐标;
+bool CMarkerFinder::LocateTextArea(Mat srcImg, LocTexParam struLTParam, Mat &bImg, vector<Rect> & vecLoc) {
+	int nScale = 2; 
+
+	//缩小一半进行处理;
+	Mat resizedSrcImg;
+	resize(srcImg, resizedSrcImg, cvSize(srcImg.cols / nScale, srcImg.rows / nScale));
+	struLTParam.nTextBandWThre /= nScale;
+
 	Mat gray;
-	cvtColor(srcImg, gray, CV_BGR2GRAY);
+	cvtColor(resizedSrcImg, gray, CV_BGR2GRAY);
 
 	Mat grad_x, grad_y, grad;
 	Mat abs_grad_x, abs_grad_y;
@@ -146,56 +373,20 @@ bool CMarkerFinder::LocateTextArea(Mat srcImg, Mat &bImg, vector<Point> & vecLoc
 		imwrite("d:\\bimg.jpg", bImg);
 	}
 
-	//找阶跃点;
-	int h = bImg.rows;
-	int w = bImg.cols;
-	int * nHist = new int[w];
-	memset(nHist, 0, sizeof(int)*w);
-	for (int r = 0; r < h - 1; r++)
-	{
-		//uchar* pdata = img.ptr<uchar>(r);
-		for (int c = 0; c < w; c++)
-		{
-			char v1 = bImg.at<char>(r, c);
-			char v2 = bImg.at<char>(r + 1, c);
-			if (v1 != v2)
-				nHist[c]++;
-		}
-	}
-
-	int nExtendW = 10;  //拓展10个像素;
-	int nThre = 8 * 2;  //出现的最简单字符个数(阶跃数)
-	int nTextWidThre = 100;  //文字宽度;
-	for (int i = 0; i < w - 1;)
-	{
-		bool b1 = (nHist[i] > nThre);   //左空右边缘;
-		if (nHist[i] > nThre) {
-			int nStart = i;
-			while (nHist[i++] > nThre);
-			if ((i - nStart) > nTextWidThre)
-			{
-				Point pt; //左边x坐标为x,右边x坐标为y;
-				pt.x = nStart - nExtendW;
-				pt.y = i + nExtendW;
-				vecLoc.push_back(pt);
-			}
-		}
-		else
-			i++;
-	}
-
+	//查找文字区域;
+	FindTextCord(bImg, struLTParam, vecLoc);
+	//坐标切回到原图大小;
 	for (int i = 0; i < vecLoc.size(); i++)
 	{
-		//左边直线;
-		Point pt = cvPoint(vecLoc[i].x, 0);
-		Point pb = cvPoint(vecLoc[i].x, h - 1);
-		line(srcImg, pt, pb, Scalar(0, 0, 255), 8);
-
-		//右边直线;
-		pt = cvPoint(vecLoc[i].y, 0);
-		pb = cvPoint(vecLoc[i].y, h - 1);
-		line(srcImg, pt, pb, Scalar(0, 0, 255), 8);
+		vecLoc[i].x *= nScale;
+		vecLoc[i].y *= nScale;
+		vecLoc[i].width *= nScale;
+		vecLoc[i].height *= nScale;
 	}
+
+	//画区域;
+	for (int i = 0; i < vecLoc.size(); i++)
+		rectangle(srcImg, vecLoc[i], Scalar(0, 0, 255), 8);
 
 	if (ENABLE_TEST)
 		imwrite("d:\\res.jpg", srcImg);
@@ -203,6 +394,9 @@ bool CMarkerFinder::LocateTextArea(Mat srcImg, Mat &bImg, vector<Point> & vecLoc
 	//找不到文字区;
 	if (vecLoc.size() == 0)
 		return false;
+
+	//改回原来的大小
+	resize(bImg, bImg, cvSize(bImg.cols * nScale, bImg.rows * nScale));
 
 	return true;
 }
