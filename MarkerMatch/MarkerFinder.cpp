@@ -1,6 +1,6 @@
 #include "MarkerFinder.h"
 #include <opencv2/imgproc/types_c.h>
-#define  ENABLE_TEST  1
+#define  ENABLE_TEST  0
 
 CMarkerFinder::CMarkerFinder()
 {
@@ -12,6 +12,124 @@ CMarkerFinder::~CMarkerFinder()
 {
 
 }
+
+//查找暗场下的marker
+//srcImg & tempImg: 原图和模板图;
+//wmp:定位晶片marker时的参数;
+//vecLocRect: 返回的定位结果;
+bool CMarkerFinder::FindWafterMarkerArea(Mat srcImg, Mat bImg, LocWafterMarkerParam wmp,
+										vector<Rect>vecTextLoc, vector<Rect> &vecMarkerAreaRect)
+{
+	int nSize = vecTextLoc.size();
+	if (nSize == 0)
+		return false;
+
+	int nExtend = 10;
+	for (int i = 0; i < nSize; i++)
+	{
+		Rect wafterRect;
+		//默认maker在文字的左边;
+		wafterRect.x = vecTextLoc[i].x - wmp.nDistToText - wmp.nMarkerWidth - nExtend;
+		if (wafterRect.x < 0)
+			wafterRect.x = 0;
+		wafterRect.y = vecTextLoc[i].y;
+		wafterRect.width = wmp.nMarkerWidth + nExtend * 2;
+		
+		int nTextBottom = vecTextLoc[i].y + vecTextLoc[i].height;
+		//假设maker的底部坐标和文本坐标差不多。为了稳妥，增加了marker大小的高度;
+		int nWafterBtm = nTextBottom + wmp.nMarkerWidth;
+		wafterRect.height = nWafterBtm - wafterRect.y;
+
+		vecMarkerAreaRect.push_back(wafterRect);
+	}
+
+	//如果只有1个marker，还要找第二个;
+	if (nSize == 1)
+	{
+		//缩放后的二值图;
+		Mat resizedBImg;
+		resize(bImg, resizedBImg, cvSize(bImg.cols / 8, bImg.rows / 8));
+		
+		//对二值图进行膨胀,然后检测Marker区域;
+		Mat dilateBImg;
+		Mat kern = getStructuringElement(MORPH_ELLIPSE, Size(3, 3));
+		dilate(resizedBImg, dilateBImg, kern);
+
+		//计算垂直投影：
+		int h = dilateBImg.rows;
+		int w = dilateBImg.cols;
+		int * pHist = new int[w];
+		memset(pHist, 0, sizeof(int)*w);
+		for (int row = 0; row < h; row++)
+		{
+			for (int col = 0; col < w; col++)
+			{
+				//假设已有marker区域的左边还有一个marker
+				//第二个marker的距离：5*wmp.nDistToText;
+				int nMarkerLeft = vecMarkerAreaRect[0].x - 10*wmp.nDistToText - wmp.nMarkerWidth; 
+				nMarkerLeft /= 8;
+				int nMarkerRight = vecTextLoc[0].x + vecTextLoc[0].width;
+				nMarkerRight /= 8;
+
+				//已有marker区域不计算;
+				if (col>=nMarkerLeft && col<=nMarkerRight)
+					continue;
+
+				char v1 = dilateBImg.at<char>(row, col);
+				if (v1 != 0)
+					pHist[col]++;
+			}
+		}
+
+		//寻找candidate maker区域;
+		vector<Rect> vecTemp;
+		Rect rr;
+		for (int k = 0; k < w;)
+		{
+			int nStart;
+			if (pHist[k] > 0) {
+				nStart = k;
+				//找到第一个非黑点;
+				while (pHist[k++]);
+				//可能是marker;
+				if ((k - nStart) * 8 > 0.7 * wmp.nMarkerWidth)
+				{
+					rr.x = nStart * 8;  //缩放8倍以后，需要算回原始坐标;
+					rr.width = (k - nStart) * 8;
+					rr.y = 0;
+					rr.height = bImg.rows - 1;
+					vecTemp.push_back(rr);
+
+					//rectangle(srcImg, rr, Scalar(255, 255, 255), 8);
+				}
+			}
+			else
+				k++;
+		}
+
+		delete[] pHist;
+
+		//只有一个区域的话，那就是这个marker;
+		if (vecTemp.size() == 1)
+		{
+			rr = vecTemp[0];
+			rr.x -= 30;
+			rr.width += 60;
+			vecMarkerAreaRect.push_back(rr);
+		}
+		//多个区域的话，不管是2个还是3个，都是第二个;
+		else if (vecTemp.size() > 1)
+		{
+			rr = vecTemp[1];
+			rr.x -= 20;
+			rr.width += 40;
+			vecMarkerAreaRect.push_back(rr);
+		}
+	}
+
+	return true;
+}
+
 
 //在图中查找模板图片;
 //srcImg & tempImg: 原图和模板图;
@@ -75,7 +193,6 @@ bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, int nMaxCount, vecto
 		char msg[10];
 		sprintf_s(msg, "%.1f", maxValue);
 		putText(srcImg, string(msg), cvPoint(k.x, k.y - 10), FONT_HERSHEY_PLAIN, 4, Scalar(255, 0, 255), 6);
-
 	}
 
 	return vecTempRect.size();
@@ -85,9 +202,9 @@ bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, int nMaxCount, vecto
 //srcImg:原图;
 //templateImg: 模板图;
 //vecMarkerAreaRect: maker的大致区域，非精细;
-//vecMarkerLoc:精确的Marker区域,输出参数;
+//vecMarkerLoc:精确的Marker定位结果,输出参数;
 bool CMarkerFinder::LocateMarker_Fine(Mat srcImg, Mat templateImg,vector<Rect> vecMarkerAreaRect,
-	                                  vector<Rect> &vecMarkerLoc) 
+	                                  vector<LocMarker> &vecMarkerLoc)
 {
 	int nSize = vecMarkerAreaRect.size();
 	if (nSize == 0)
@@ -111,7 +228,6 @@ bool CMarkerFinder::LocateMarker_Fine(Mat srcImg, Mat templateImg,vector<Rect> v
 		//二值图像的匹配：
 		Mat resImg;
 		matchTemplate(BSrcImg, grayTempImg, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
-		//normalize(resImg, resImg, 0, 1, NORM_MINMAX);
 
 		double minValue, maxValue;
 		Point minLoc, maxLoc;
@@ -120,42 +236,31 @@ bool CMarkerFinder::LocateMarker_Fine(Mat srcImg, Mat templateImg,vector<Rect> v
 		if (maxValue < 0.5)
 			continue;
 
+		//切换回全图坐标;
 		Rect k;
+		LocMarker lm;
 		k.x = maxLoc.x + r.x;
 		k.y = maxLoc.y + r.y;
 		k.width = templateImg.cols;
 		k.height = templateImg.rows;
-		vecMarkerLoc.push_back(k);
 
-		//显示maxvalue
-		char msg[10];
-		sprintf_s(msg, "%.1f", maxValue);
-		putText(srcImg, string(msg), cvPoint(k.x, k.y - 10), FONT_HERSHEY_PLAIN, 4, Scalar(255, 0, 255), 6);
+		lm.rect = k;
+		lm.fConfidence = maxValue;
+		vecMarkerLoc.push_back(lm);
 	}
 
-	for (int j = 0; j < vecMarkerLoc.size(); j++)
-	{
-		rectangle(srcImg, vecMarkerLoc[j], Scalar(255, 0, 255), 8);
-	}
+	return true;
 }
 
-//查找marker区域;
-bool CMarkerFinder::LocateMarkerArea(Mat srcImg, vector<Rect> &vecMarkerRect) {
-	Mat bImg;
-	vector<Rect> vecLoc;
+//查找mask的实心十字marker区域;
+bool CMarkerFinder::FindMaskMarkerArea(Mat srcImg, Mat bImg, vector<Rect>vecTextLoc, vector<Rect> &vecMarkerRect) {
+	
 	int nDilateKernalSize = 5;
 
-	//先查找文字区域;
-	LocTexParam struLTParam;
-	struLTParam.nStepCountThre = 3 * 2;
-	if (!LocateTextArea(srcImg, struLTParam, bImg, vecLoc))
-		return false;
-
-	//对每一组文字区域进行处理;
-	for (int i = 0; i < vecLoc.size();	i++)
+	//对每一组文字区域进行处理; 
+	for (int i = 0; i < vecTextLoc.size();	i++)
 	{
-		Rect curR = vecLoc[i];
-
+		Rect curR = vecTextLoc[i];
 		Mat roiImg = bImg(curR);
 
 		//将二值图横纵坐标都缩小8倍
@@ -231,13 +336,6 @@ bool CMarkerFinder::LocateMarkerArea(Mat srcImg, vector<Rect> &vecMarkerRect) {
 		}
 
 		delete[] pHist;
-	}
-
-	//在原图中标记文字区域;
-	for (int k = 0; k < vecMarkerRect.size(); k++)
-	{
-		rectangle(srcImg, vecMarkerRect[k], Scalar(0, 255, 0), 8);
-		//imwrite("d:\\src.jpg", srcImg);
 	}
 	
 	return true;
@@ -385,8 +483,8 @@ bool CMarkerFinder::LocateTextArea(Mat srcImg, LocTexParam struLTParam, Mat &bIm
 	}
 
 	//画区域;
-	for (int i = 0; i < vecLoc.size(); i++)
-		rectangle(srcImg, vecLoc[i], Scalar(0, 0, 255), 8);
+	//for (int i = 0; i < vecLoc.size(); i++)
+	//	rectangle(srcImg, vecLoc[i], Scalar(0, 0, 255), 8);
 
 	if (ENABLE_TEST)
 		imwrite("d:\\res.jpg", srcImg);

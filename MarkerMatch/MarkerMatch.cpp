@@ -15,19 +15,8 @@ using namespace cv;
 #pragma comment(lib,"opencv_world400.lib")
 #endif
 
-
 int main()
 {
-	/*
-	string strSolidCross = "E:\\MyProject\\MarkerMatch\\template\\SolidCross4.jpg";
-	Mat scImg = imread(strSolidCross);
-	Mat scGrayImg;
-	cvtColor(scImg, scGrayImg, CV_BGR2GRAY);
-	Mat scBiImg;
-	threshold(scGrayImg, scBiImg, 0, 255, THRESH_OTSU);
-	imwrite("d:\\solidcross4_b.jpg", scBiImg);
-	*/
-	
 	string strSrcImg = "E:\\MyProject\\MarkerMatch\\Êý¾Ý\\1\\20190611164502063.jpg";
 	//string strSrcImg = "d:\\a.jpg";
 	//string strTempImg = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\template\\temp1.jpg";
@@ -52,7 +41,7 @@ int main()
 	cout << "The LocTemp time is: " << (double)(e - s) / CLOCKS_PER_SEC * 1000 << "ms" << endl;
 
 	namedWindow("srcimg", 0);
-	//resizeWindow("srcimg", 1368, 912);
+	resizeWindow("srcimg", 1368, 912);
 	imshow("srcimg", srcImg);
 
 	waitKey(0);

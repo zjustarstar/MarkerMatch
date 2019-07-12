@@ -7,6 +7,7 @@
 #include "MarkerMatchUIDlg.h"
 #include "afxdialogex.h"
 #include "..\\MarkerMatch\MarkerFinder.h"
+#include <opencv2/imgproc/types_c.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -23,6 +24,7 @@
 
 CMarkerMatchUIDlg::CMarkerMatchUIDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(IDD_MARKERMATCHUI_DIALOG, pParent)
+	, m_nDistToText(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -33,6 +35,8 @@ void CMarkerMatchUIDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_EDIT_FOLDERPATH, m_editFilePath);
 	DDX_Control(pDX, IDC_LIST_IMAGEFILES, m_lbFiles);
 	DDX_Control(pDX, IDC_STATIC_TOTALFILES, m_sttTotal);
+	DDX_Control(pDX, IDC_STATIC_SPENDING, m_sttTotalTime);
+	DDX_Text(pDX, IDC_EDIT_DISTTOTEXT, m_nDistToText);
 }
 
 BEGIN_MESSAGE_MAP(CMarkerMatchUIDlg, CDialogEx)
@@ -57,10 +61,15 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+	CEdit * pWnd = (CEdit *)GetDlgItem(IDC_EDIT_DISTTOTEXT);
 	CButton * pBtnDarkerEnv = (CButton *)GetDlgItem(IDC_RADIO_WAFER);
 	CButton * pBtnBrightEnv = (CButton *)GetDlgItem(IDC_RADIO_MASK2);
 	pBtnBrightEnv->SetCheck(1);
+	pWnd->EnableWindow(FALSE);
 	m_bDarkerEnv = false;
+
+	m_nDistToText = 50;
+	UpdateData(FALSE);
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -186,6 +195,8 @@ void CMarkerMatchUIDlg::ListAllFiles(CString strFilePath)
 
 void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 {
+	UpdateData(TRUE);
+
 	// TODO: 在此添加控件通知处理程序代码
 	int nCurIndex = m_lbFiles.GetCurSel();
 	if (-1 == nCurIndex)
@@ -193,8 +204,10 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		return;
 	}
 
-	string strTempImg = "E:\\MyProject\\MarkerMatch\\template\\solidcross4_b.jpg";
-	Mat tempImg = imread(strTempImg);
+	//明场template;
+	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\solidcross4_b.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
+	Mat tempImg;
 
 	CString strFileName;
 	m_lbFiles.GetText(nCurIndex, strFileName);
@@ -202,13 +215,63 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 
 	Mat srcImg = imread(strFileName.GetBuffer(0));
 
+	clock_t s, e;
+	s = clock();
+
+	//先查找文字区域;
 	Mat bImg;
+	LocTexParam struLTParam;
+	vector<Rect> vecTextLoc;
+	//暗场下,该参数更小一点;因为总体亮度较低,字符可能检测到的概率低;明场下亮度较大;
+	if (m_bDarkerEnv)
+		struLTParam.nStepCountThre = 3 * 2;
+	if (!CMarkerFinder::LocateTextArea(srcImg, struLTParam, bImg, vecTextLoc))
+		return ;
+	
+	//再找Marker区域;
 	vector<Rect> vecMakerAreaRect;
-	vector<Rect> vecMakerLoc;
-	vector<Rect> vecTempRect;
-	CMarkerFinder::LocateMarkerArea(srcImg, vecMakerAreaRect);
+	LocWafterMarkerParam wmp;
+	wmp.nDistToText = m_nDistToText;
+	if (m_bDarkerEnv)
+	{
+		//检测暗场marker;
+		CMarkerFinder::FindWafterMarkerArea(srcImg, bImg, wmp, vecTextLoc, vecMakerAreaRect);
+		tempImg = imread(strTempImg_wafter);
+	}
+	else
+	{
+		//检测明场marker;
+		CMarkerFinder::FindMaskMarkerArea(srcImg, bImg,vecTextLoc,vecMakerAreaRect);
+		tempImg = imread(strTempImg_mask);
+	}
+
+	//最终找到marker;
+	vector<LocMarker> vecMakerLoc;
 	CMarkerFinder::LocateMarker_Fine(srcImg, tempImg, vecMakerAreaRect, vecMakerLoc);
-	//CMarkerFinder::LocateTemplate(srcImg, tempImg, 6, vecTempRect);
+
+	CString strMsg;
+	e = clock();
+	double dTime = (double)(e - s) / CLOCKS_PER_SEC * 1000;
+	strMsg.Format("检测耗时:%.1f MS", dTime);
+	m_sttTotalTime.SetWindowTextA(strMsg);
+
+	//画Text区域;
+	for (int i = 0; i < vecTextLoc.size(); i++)
+		rectangle(srcImg, vecTextLoc[i], Scalar(0, 0, 255), 8);
+	//在原图中标记Marker区域;该区域应该位于文字区域中;
+	for (int k = 0; k < vecMakerAreaRect.size(); k++)
+		rectangle(srcImg, vecMakerAreaRect[k], Scalar(0, 255, 0), 8);
+	//显示最终的marker区域;
+	for (int j = 0; j < vecMakerLoc.size(); j++)
+	{
+		Rect k = vecMakerLoc[j].rect;
+		rectangle(srcImg, k, Scalar(255, 0, 255), 8);
+
+		//显示maxvalue
+		char msg[10];
+		sprintf_s(msg, "%.2f", vecMakerLoc[j].fConfidence);
+		putText(srcImg, string(msg), cvPoint(k.x, k.y - 10), FONT_HERSHEY_PLAIN, 4, Scalar(255, 0, 255), 6);
+	}
 
 	namedWindow("img", 0);
 	resizeWindow("img", 684, 456);
@@ -220,6 +283,8 @@ void CMarkerMatchUIDlg::OnBnClickedRadioWafer()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	m_bDarkerEnv = true;
+	CEdit * pWnd = (CEdit *)GetDlgItem(IDC_EDIT_DISTTOTEXT);
+	pWnd->EnableWindow(TRUE);
 }
 
 
@@ -227,4 +292,6 @@ void CMarkerMatchUIDlg::OnBnClickedRadioMask2()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	m_bDarkerEnv = false;
+	CEdit * pWnd = (CEdit *)GetDlgItem(IDC_EDIT_DISTTOTEXT);
+	pWnd->EnableWindow(FALSE);
 }

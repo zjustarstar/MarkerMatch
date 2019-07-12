@@ -51,4 +51,6 @@ public:
 	afx_msg void OnSelchangeListImagefiles();
 	afx_msg void OnBnClickedRadioWafer();
 	afx_msg void OnBnClickedRadioMask2();
+	CStatic m_sttTotalTime;
+	int m_nDistToText;
 };
