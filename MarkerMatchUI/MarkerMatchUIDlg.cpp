@@ -1,4 +1,3 @@
-
 // MarkerMatchUIDlg.cpp : 实现文件
 //
 
@@ -36,6 +35,8 @@ void CMarkerMatchUIDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_LIST_IMAGEFILES, m_lbFiles);
 	DDX_Control(pDX, IDC_STATIC_TOTALFILES, m_sttTotal);
 	DDX_Control(pDX, IDC_STATIC_SPENDING, m_sttTotalTime);
+	DDX_Control(pDX, IDC_CHECK_SAVERESULT, m_chkSaveResult);
+	DDX_Control(pDX, IDC_CHECK_GEN_MAKERDETECTOR, m_chkGenMarkerDet);
 	DDX_Text(pDX, IDC_EDIT_DISTTOTEXT, m_nDistToText);
 }
 
@@ -46,6 +47,9 @@ BEGIN_MESSAGE_MAP(CMarkerMatchUIDlg, CDialogEx)
 	ON_LBN_SELCHANGE(IDC_LIST_IMAGEFILES, &CMarkerMatchUIDlg::OnSelchangeListImagefiles)
 	ON_BN_CLICKED(IDC_RADIO_WAFER, &CMarkerMatchUIDlg::OnBnClickedRadioWafer)
 	ON_BN_CLICKED(IDC_RADIO_MASK2, &CMarkerMatchUIDlg::OnBnClickedRadioMask2)
+	ON_BN_CLICKED(IDC_BUTTON_BATCH, &CMarkerMatchUIDlg::OnBnClickedButtonBatch)
+	ON_BN_CLICKED(IDC_CHECK_SAVERESULT, &CMarkerMatchUIDlg::OnBnClickedCheckSaveresult)
+	ON_BN_CLICKED(IDC_CHECK_GEN_MAKERDETECTOR, &CMarkerMatchUIDlg::OnBnClickedCheckGenMakerdetector)
 END_MESSAGE_MAP()
 
 
@@ -60,7 +64,7 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	SetIcon(m_hIcon, TRUE);			// 设置大图标
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
-	// TODO: 在此添加额外的初始化代码
+									// TODO: 在此添加额外的初始化代码
 	CEdit * pWnd = (CEdit *)GetDlgItem(IDC_EDIT_DISTTOTEXT);
 	CButton * pBtnDarkerEnv = (CButton *)GetDlgItem(IDC_RADIO_WAFER);
 	CButton * pBtnBrightEnv = (CButton *)GetDlgItem(IDC_RADIO_MASK2);
@@ -204,74 +208,17 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		return;
 	}
 
-	//明场template;
-	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\solidcross4_b.jpg";
-	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
-	Mat tempImg;
-
 	CString strFileName;
 	m_lbFiles.GetText(nCurIndex, strFileName);
 	strFileName = m_strFilePath + "\\" + strFileName;
 
 	Mat srcImg = imread(strFileName.GetBuffer(0));
 
-	clock_t s, e;
-	s = clock();
-
-	//先查找文字区域;
-	Mat bImg;
-	LocTexParam struLTParam;
-	vector<Rect> vecTextLoc;
-	//暗场下,该参数更小一点;因为总体亮度较低,字符可能检测到的概率低;明场下亮度较大;
-	if (m_bDarkerEnv)
-		struLTParam.nStepCountThre = 3 * 2;
-	if (!CMarkerFinder::LocateTextArea(srcImg, struLTParam, bImg, vecTextLoc))
-		return ;
-	
-	//再找Marker区域;
-	vector<Rect> vecMakerAreaRect;
-	LocWafterMarkerParam wmp;
-	wmp.nDistToText = m_nDistToText;
-	if (m_bDarkerEnv)
-	{
-		//检测暗场marker;
-		CMarkerFinder::FindWafterMarkerArea(srcImg, bImg, wmp, vecTextLoc, vecMakerAreaRect);
-		tempImg = imread(strTempImg_wafter);
-	}
+	//非通用的检测方法，通过文字区域定位;
+	if (!m_bGenMarkerDet)
+		FindMarker_withText(srcImg);
 	else
-	{
-		//检测明场marker;
-		CMarkerFinder::FindMaskMarkerArea(srcImg, bImg,vecTextLoc,vecMakerAreaRect);
-		tempImg = imread(strTempImg_mask);
-	}
-
-	//最终找到marker;
-	vector<LocMarker> vecMakerLoc;
-	CMarkerFinder::LocateMarker_Fine(srcImg, tempImg, vecMakerAreaRect, vecMakerLoc);
-
-	CString strMsg;
-	e = clock();
-	double dTime = (double)(e - s) / CLOCKS_PER_SEC * 1000;
-	strMsg.Format("检测耗时:%.1f MS", dTime);
-	m_sttTotalTime.SetWindowTextA(strMsg);
-
-	//画Text区域;
-	for (int i = 0; i < vecTextLoc.size(); i++)
-		rectangle(srcImg, vecTextLoc[i], Scalar(0, 0, 255), 8);
-	//在原图中标记Marker区域;该区域应该位于文字区域中;
-	for (int k = 0; k < vecMakerAreaRect.size(); k++)
-		rectangle(srcImg, vecMakerAreaRect[k], Scalar(0, 255, 0), 8);
-	//显示最终的marker区域;
-	for (int j = 0; j < vecMakerLoc.size(); j++)
-	{
-		Rect k = vecMakerLoc[j].rect;
-		rectangle(srcImg, k, Scalar(255, 0, 255), 8);
-
-		//显示maxvalue
-		char msg[10];
-		sprintf_s(msg, "%.2f", vecMakerLoc[j].fConfidence);
-		putText(srcImg, string(msg), cvPoint(k.x, k.y - 10), FONT_HERSHEY_PLAIN, 4, Scalar(255, 0, 255), 6);
-	}
+		FindMarker_General_HogTemp(srcImg);
 
 	namedWindow("img", 0);
 	resizeWindow("img", 684, 456);
@@ -294,4 +241,217 @@ void CMarkerMatchUIDlg::OnBnClickedRadioMask2()
 	m_bDarkerEnv = false;
 	CEdit * pWnd = (CEdit *)GetDlgItem(IDC_EDIT_DISTTOTEXT);
 	pWnd->EnableWindow(FALSE);
+}
+
+//显示模板匹配的结果。同时显示定位框和匹配度文字;
+//bTextUp为true表示文字显示在框上面
+void CMarkerMatchUIDlg::DrawTempLocResult(Mat srcImg, Scalar color, vector<LocMarker> vecResult,bool bTextUp)
+{
+	//显示最终的marker区域;
+	for (int j = 0; j < vecResult.size(); j++)
+	{
+		Rect k = vecResult[j].rect;
+		rectangle(srcImg, k, color, 8);
+
+		//显示maxvalue
+		char msg[10];
+		sprintf_s(msg, "%.2f", vecResult[j].fConfidence);
+
+		//默认文字显示在框上;
+		int y = (k.y - 10) > 0 ? (k.y - 10) : 0;
+		if (!bTextUp)
+		{
+			y = (k.y + k.height + 50);
+			if (y >= srcImg.rows)
+				y = srcImg.rows - 1;
+		}
+		putText(srcImg, string(msg), cvPoint(k.x, y), FONT_HERSHEY_PLAIN, 4, Scalar(255, 0, 255), 6);
+	}
+
+}
+
+//基于文字定位的marker检测方法;
+void CMarkerMatchUIDlg::FindMarker_withText(Mat srcImg) {
+	//明场template;
+	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\solidcross4_b.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
+	Mat tempImg;
+
+	clock_t s, e;
+	s = clock();
+
+	//先查找文字区域;
+	Mat bImg;
+	LocTexParam struLTParam;
+	vector<Rect> vecTextLoc;
+	//暗场下,该参数更小一点;因为总体亮度较低,字符可能检测到的概率低;明场下亮度较大;
+	if (m_bDarkerEnv)
+		struLTParam.nStepCountThre = 3 * 2;
+	if (!CMarkerFinder::LocateTextArea(srcImg, struLTParam, bImg, vecTextLoc))
+		return;
+
+	//再找Marker区域;
+	vector<Rect> vecMakerAreaRect;
+	LocWafterMarkerParam wmp;
+	wmp.nDistToText = m_nDistToText;
+	if (m_bDarkerEnv)
+	{
+		//检测暗场marker;
+		CMarkerFinder::FindWafterMarkerArea(srcImg, bImg, wmp, vecTextLoc, vecMakerAreaRect);
+		tempImg = imread(strTempImg_wafter);
+	}
+	else
+	{
+		//检测明场marker;
+		CMarkerFinder::FindMaskMarkerArea(srcImg, bImg, vecTextLoc, vecMakerAreaRect);
+		tempImg = imread(strTempImg_mask);
+	}
+
+	//最终找到marker;
+	vector<LocMarker> vecMakerLoc;
+	CMarkerFinder::LocateMarkerByTempMatch(srcImg, tempImg, vecMakerAreaRect, 0.4, vecMakerLoc);
+
+	CString strMsg;
+	e = clock();
+	double dTime = (double)(e - s) / CLOCKS_PER_SEC * 1000;
+	strMsg.Format("检测耗时:%.1f MS", dTime);
+	m_sttTotalTime.SetWindowTextA(strMsg);
+
+	//在画之前先保存数据;
+	if (m_bSaveResult)
+		SaveResults(srcImg, vecMakerLoc);
+
+	//画Text区域;
+	for (int i = 0; i < vecTextLoc.size(); i++)
+		rectangle(srcImg, vecTextLoc[i], Scalar(0, 0, 255), 8);
+	//在原图中标记Marker区域;该区域应该位于文字区域中;
+	for (int k = 0; k < vecMakerAreaRect.size(); k++)
+		rectangle(srcImg, vecMakerAreaRect[k], Scalar(0, 255, 0), 8);
+	//显示最终的marker区域;
+	DrawTempLocResult(srcImg, Scalar(255, 0, 255), vecMakerLoc);
+}
+
+
+//通用的marker检测方法,直接采用template检测；
+void CMarkerMatchUIDlg::FindMarker_General_Temp(Mat srcImg) {
+
+}
+
+
+//通用的marker检测方法，结合hog和template match;
+void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
+
+	//明场template;
+	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\solidcross4_b.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
+	Mat tempImg;
+
+	bool bHollowCross;
+	double dHitThre;
+	if (m_bDarkerEnv)
+	{
+		tempImg = imread(strTempImg_wafter);
+		bHollowCross = true;
+		dHitThre = -0.7;  //暗场的参数
+	}
+	else {
+		tempImg = imread(strTempImg_mask);
+		bHollowCross = false;
+		dHitThre = -0.5;  //明场的参数;
+	}
+
+	clock_t s, e;
+	s = clock();
+
+	//首先检测到有十字的区域;
+	CMarkerFinder mf;
+	vector<LocMarker> vecMarkerArea;
+	mf.LocateCrossAreaByHog(srcImg, dHitThre, bHollowCross, vecMarkerArea);
+
+	//然后进行模板匹配;
+	vector<Rect> vecMarkerRect;
+	for (int i = 0; i < vecMarkerArea.size(); i++)
+		vecMarkerRect.push_back(vecMarkerArea[i].rect);
+	vector<LocMarker> vecResult;
+	mf.LocateMarkerByTempMatch(srcImg, tempImg, vecMarkerRect, 0.3, vecResult);
+
+	CString strMsg;
+	e = clock();
+	double dTime = (double)(e - s) / CLOCKS_PER_SEC * 1000;
+	strMsg.Format("检测耗时:%.1f MS", dTime);
+	m_sttTotalTime.SetWindowTextA(strMsg);
+
+	//在画之前先保存数据;
+	if (m_bSaveResult)
+		SaveResults(srcImg, vecResult);
+
+	//hog区域;
+	DrawTempLocResult(srcImg, Scalar(0, 255, 0), vecMarkerArea,false);
+	//最终定位的marker区域，更细致;
+	DrawTempLocResult(srcImg, Scalar(0,0,255), vecResult);
+}
+
+//保存结果;
+void CMarkerMatchUIDlg::SaveResults(Mat srcImg, vector<LocMarker> vecResult) {
+
+	string strHollowCross = "d:\\CrossData\\HollowCross\\";
+	string strSolidCross = "d:\\CrossData\\SolidCross\\";
+
+	string strPath;
+	if (m_bDarkerEnv)
+		strPath = strHollowCross;
+	else
+		strPath = strSolidCross;
+
+	int nSize = vecResult.size();
+	int mon, d, h, m, ms;
+	CTime t = GetCurrentTime();
+	mon = t.GetMonth();
+	d = t.GetDay();
+	h = t.GetHour();
+	m = t.GetMinute();
+	ms = t.GetSecond();
+
+	//为了不重名，按照细到秒的时间保存数据;
+	string strFileName;
+	for (int i = 0; i < nSize; i++)
+	{
+		Rect r;
+		r = vecResult[i].rect;
+
+		char chName[256];
+		sprintf_s(chName, "%d%d%d%d%d_%d.jpg", mon, d, h, m, ms, i);
+
+		strFileName = strPath + string(chName);
+		imwrite(strFileName, srcImg(r));
+	}
+}
+
+void CMarkerMatchUIDlg::OnBnClickedCheckGenMakerdetector() {
+	m_bGenMarkerDet = m_chkGenMarkerDet.GetCheck();
+}
+
+void CMarkerMatchUIDlg::OnBnClickedCheckSaveresult() {
+	m_bSaveResult = m_chkSaveResult.GetCheck();
+}
+
+void CMarkerMatchUIDlg::OnBnClickedButtonBatch() {
+
+	for (int i = 0; i < m_vecFiles.size(); i++)
+	{
+		m_lbFiles.SetCurSel(i);
+
+		CString strFileName;
+		m_lbFiles.GetText(i, strFileName);
+		strFileName = m_strFilePath + "\\" + strFileName;
+
+		Mat srcImg = imread(strFileName.GetBuffer(0));
+
+		//非通用的检测方法，通过文字区域定位;
+		if (!m_bGenMarkerDet)
+			FindMarker_withText(srcImg);
+		else
+			FindMarker_General_HogTemp(srcImg);
+	}
+	
 }

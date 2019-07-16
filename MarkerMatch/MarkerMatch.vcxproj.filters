@@ -27,6 +27,9 @@
     <ClInclude Include="MarkerFinder.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="Train.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -36,6 +39,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="MarkerFinder.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Train.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

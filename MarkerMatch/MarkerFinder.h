@@ -38,11 +38,12 @@ class CMarkerFinder
 public:
 	CMarkerFinder();
 	virtual ~CMarkerFinder();
+	static void GenerateBImg(Mat srcImg, Mat & bImg);
 	//定位文字区域;
 	static bool LocateTextArea(Mat srcImg, LocTexParam struLTParam, Mat &bImg, vector<Rect> & vecLoc);
 	//定位marker具体位置;
-	static bool LocateMarker_Fine(Mat srcImg, Mat templateImg, vector<Rect> vecMarkerAreaRect,
-		                          vector<LocMarker> &vecMarkerLoc);
+	static bool LocateMarkerByTempMatch(Mat srcImg, Mat templateImg, vector<Rect> vecMarkerAreaRect,
+		                                float dMatchThre, vector<LocMarker> &vecMarkerLoc);
 
 	//查找明场下的marker区域，实心十字;
 	static bool FindMaskMarkerArea(Mat srcImg, Mat bImg, vector<Rect>vecTextLoc, vector<Rect> &vecMarkerRect);
@@ -52,9 +53,17 @@ public:
 
 	//测试用;
 	static bool LocateTemplate(Mat srcImg, Mat tempImg, int nMaxCount,
-		vector<Rect> & vecTempRect);
+		vector<LocMarker> & vecTempRect);
+
+	//通用版的十字检测;
+	void LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHollowCross, vector<LocMarker> & vecFound);
 
 private:
 	static void   FindTextCord(Mat bImg, LocTexParam struLTParam, vector<Rect> & vecRect);
+
+private:
+	HOGDescriptor m_hcHog;  //for hollowcross detector;
+	HOGDescriptor m_scHog;  //for solidcross detector;
+	
 };
 

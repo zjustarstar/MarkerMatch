@@ -5,6 +5,7 @@
 #pragma once
 #include <opencv2\opencv.hpp>
 #include "afxwin.h"
+#include "..\\MarkerMatch\MarkerFinder.h"
 
 using namespace std;
 using namespace cv;
@@ -40,9 +41,16 @@ public:
 	CString              m_strFilePath;  //文件夹路径;
 	std::vector<string>  m_vecFiles;
 	bool                 m_bDarkerEnv;   //暗场模式;
+	bool                 m_bSaveResult;  //保存识别结果;
+	bool                 m_bGenMarkerDet; //通用十字模板检测;
 
 private:
 	void ListAllFiles(CString strFilePath);
+	void DrawTempLocResult(Mat srcImg, Scalar color, vector<LocMarker> vecResult, bool bTextUp=true);
+	void FindMarker_withText(Mat srcImg);
+	void FindMarker_General_Temp(Mat srcImg);     //直接全图使用模板匹配;
+	void FindMarker_General_HogTemp(Mat srcImg);  //先hog定位,再模板匹配;
+	void SaveResults(Mat srcImg, vector<LocMarker> vecResult);
 
 public:
 	CEdit m_editFilePath;
@@ -53,4 +61,9 @@ public:
 	afx_msg void OnBnClickedRadioMask2();
 	CStatic m_sttTotalTime;
 	int m_nDistToText;
+	afx_msg void OnBnClickedCheckGenMakerdetector();
+	CButton m_chkGenMarkerDet;
+	CButton m_chkSaveResult;
+	afx_msg void OnBnClickedCheckSaveresult();
+	afx_msg void OnBnClickedButtonBatch();
 };
