@@ -27,6 +27,9 @@
     <ClInclude Include="LocMarker.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="..\MarkerMatch\MarkerFinder.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -39,6 +42,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="LocMarker.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MarkerMatch\MarkerFinder.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

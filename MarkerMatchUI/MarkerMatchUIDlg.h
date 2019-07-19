@@ -40,7 +40,7 @@ public:
 
 	CString              m_strFilePath;  //文件夹路径;
 	std::vector<string>  m_vecFiles;
-	bool                 m_bDarkerEnv;   //暗场模式;
+	int                  m_nAlgMode;     //0:暗场模式; 1:明场模式; 2:FineTune;用于算法测试;
 	bool                 m_bSaveResult;  //保存识别结果;
 	bool                 m_bGenMarkerDet; //通用十字模板检测;
 
@@ -66,4 +66,5 @@ public:
 	CButton m_chkSaveResult;
 	afx_msg void OnBnClickedCheckSaveresult();
 	afx_msg void OnBnClickedButtonBatch();
+	afx_msg void OnBnClickedRadioFinetune();
 };

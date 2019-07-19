@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MarkerMatch", "MarkerMatch\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MarkerMatchUI", "MarkerMatchUI\MarkerMatchUI.vcxproj", "{B946A2A6-CB18-4D16-AA4A-925C0FE49109}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LibMarkerLoc", "LibMarkerLoc\LibMarkerLoc.vcxproj", "{0F6FA704-35C9-4780-A0DB-F292DF9A5301}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -31,6 +33,14 @@ Global
 		{B946A2A6-CB18-4D16-AA4A-925C0FE49109}.Release|x64.Build.0 = Release|x64
 		{B946A2A6-CB18-4D16-AA4A-925C0FE49109}.Release|x86.ActiveCfg = Release|Win32
 		{B946A2A6-CB18-4D16-AA4A-925C0FE49109}.Release|x86.Build.0 = Release|Win32
+		{0F6FA704-35C9-4780-A0DB-F292DF9A5301}.Debug|x64.ActiveCfg = Debug|x64
+		{0F6FA704-35C9-4780-A0DB-F292DF9A5301}.Debug|x64.Build.0 = Debug|x64
+		{0F6FA704-35C9-4780-A0DB-F292DF9A5301}.Debug|x86.ActiveCfg = Debug|Win32
+		{0F6FA704-35C9-4780-A0DB-F292DF9A5301}.Debug|x86.Build.0 = Debug|Win32
+		{0F6FA704-35C9-4780-A0DB-F292DF9A5301}.Release|x64.ActiveCfg = Release|x64
+		{0F6FA704-35C9-4780-A0DB-F292DF9A5301}.Release|x64.Build.0 = Release|x64
+		{0F6FA704-35C9-4780-A0DB-F292DF9A5301}.Release|x86.ActiveCfg = Release|Win32
+		{0F6FA704-35C9-4780-A0DB-F292DF9A5301}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

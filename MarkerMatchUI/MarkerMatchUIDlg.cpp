@@ -50,6 +50,7 @@ BEGIN_MESSAGE_MAP(CMarkerMatchUIDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_BATCH, &CMarkerMatchUIDlg::OnBnClickedButtonBatch)
 	ON_BN_CLICKED(IDC_CHECK_SAVERESULT, &CMarkerMatchUIDlg::OnBnClickedCheckSaveresult)
 	ON_BN_CLICKED(IDC_CHECK_GEN_MAKERDETECTOR, &CMarkerMatchUIDlg::OnBnClickedCheckGenMakerdetector)
+	ON_BN_CLICKED(IDC_RADIO_FINETUNE, &CMarkerMatchUIDlg::OnBnClickedRadioFinetune)
 END_MESSAGE_MAP()
 
 
@@ -68,9 +69,13 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	CEdit * pWnd = (CEdit *)GetDlgItem(IDC_EDIT_DISTTOTEXT);
 	CButton * pBtnDarkerEnv = (CButton *)GetDlgItem(IDC_RADIO_WAFER);
 	CButton * pBtnBrightEnv = (CButton *)GetDlgItem(IDC_RADIO_MASK2);
+	CButton * pGenDetection = (CButton *)GetDlgItem(IDC_CHECK_GEN_MAKERDETECTOR);
 	pBtnBrightEnv->SetCheck(1);
 	pWnd->EnableWindow(FALSE);
-	m_bDarkerEnv = false;
+	pGenDetection->SetCheck(1);
+
+	m_nAlgMode = 1;
+	m_bGenMarkerDet = true;
 
 	m_nDistToText = 50;
 	UpdateData(FALSE);
@@ -214,11 +219,24 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 
 	Mat srcImg = imread(strFileName.GetBuffer(0));
 
-	//非通用的检测方法，通过文字区域定位;
-	if (!m_bGenMarkerDet)
-		FindMarker_withText(srcImg);
+	//fine tune;
+	if (m_nAlgMode == 2)
+	{
+		Mat b;
+		CMarkerFinder mf;
+		mf.FinalFinetune(srcImg, b);
+		srcImg = b;
+	}
+	//其它检测;
 	else
-		FindMarker_General_HogTemp(srcImg);
+	{
+		//非通用的检测方法，通过文字区域定位;
+		if (!m_bGenMarkerDet)
+			FindMarker_withText(srcImg);
+		else
+			FindMarker_General_HogTemp(srcImg);
+	}
+
 
 	namedWindow("img", 0);
 	resizeWindow("img", 684, 456);
@@ -229,7 +247,7 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 void CMarkerMatchUIDlg::OnBnClickedRadioWafer()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	m_bDarkerEnv = true;
+	m_nAlgMode = 0;
 	CEdit * pWnd = (CEdit *)GetDlgItem(IDC_EDIT_DISTTOTEXT);
 	pWnd->EnableWindow(TRUE);
 }
@@ -238,7 +256,7 @@ void CMarkerMatchUIDlg::OnBnClickedRadioWafer()
 void CMarkerMatchUIDlg::OnBnClickedRadioMask2()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	m_bDarkerEnv = false;
+	m_nAlgMode = 1;
 	CEdit * pWnd = (CEdit *)GetDlgItem(IDC_EDIT_DISTTOTEXT);
 	pWnd->EnableWindow(FALSE);
 }
@@ -273,9 +291,13 @@ void CMarkerMatchUIDlg::DrawTempLocResult(Mat srcImg, Scalar color, vector<LocMa
 //基于文字定位的marker检测方法;
 void CMarkerMatchUIDlg::FindMarker_withText(Mat srcImg) {
 	//明场template;
-	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\solidcross4_b.jpg";
+	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\temp_solidcross.jpg";
 	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
-	Mat tempImg;
+	Mat tempImg_h = imread(strTempImg_wafter);
+	Mat tempImg_s = imread(strTempImg_mask);
+
+	CMarkerFinder mf;
+	mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat());
 
 	clock_t s, e;
 	s = clock();
@@ -285,31 +307,34 @@ void CMarkerMatchUIDlg::FindMarker_withText(Mat srcImg) {
 	LocTexParam struLTParam;
 	vector<Rect> vecTextLoc;
 	//暗场下,该参数更小一点;因为总体亮度较低,字符可能检测到的概率低;明场下亮度较大;
-	if (m_bDarkerEnv)
+	if (m_nAlgMode == 0)
 		struLTParam.nStepCountThre = 3 * 2;
-	if (!CMarkerFinder::LocateTextArea(srcImg, struLTParam, bImg, vecTextLoc))
+	if (!mf.LocateTextArea(srcImg, struLTParam, bImg, vecTextLoc))
 		return;
 
 	//再找Marker区域;
 	vector<Rect> vecMakerAreaRect;
 	LocWafterMarkerParam wmp;
 	wmp.nDistToText = m_nDistToText;
-	if (m_bDarkerEnv)
+	bool bHollowCross;
+	if (m_nAlgMode == 0)
 	{
 		//检测暗场marker;
-		CMarkerFinder::FindWafterMarkerArea(srcImg, bImg, wmp, vecTextLoc, vecMakerAreaRect);
-		tempImg = imread(strTempImg_wafter);
+		mf.FindWafterMarkerArea(srcImg, bImg, wmp, vecTextLoc, vecMakerAreaRect);
+		bHollowCross = true;
 	}
-	else
+	else if (m_nAlgMode == 1)
 	{
 		//检测明场marker;
-		CMarkerFinder::FindMaskMarkerArea(srcImg, bImg, vecTextLoc, vecMakerAreaRect);
-		tempImg = imread(strTempImg_mask);
+		mf.FindMaskMarkerArea(srcImg, bImg, vecTextLoc, vecMakerAreaRect);
+		bHollowCross = false;
 	}
+	else
+		return;
 
 	//最终找到marker;
 	vector<LocMarker> vecMakerLoc;
-	CMarkerFinder::LocateMarkerByTempMatch(srcImg, tempImg, vecMakerAreaRect, 0.4, vecMakerLoc);
+	mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMakerAreaRect, 0.4, vecMakerLoc);
 
 	CString strMsg;
 	e = clock();
@@ -342,29 +367,32 @@ void CMarkerMatchUIDlg::FindMarker_General_Temp(Mat srcImg) {
 void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 
 	//明场template;
-	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\solidcross4_b.jpg";
+	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\temp_solidcross.jpg";
 	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
-	Mat tempImg;
+	Mat tempImg_h,tempImg_s;
+	tempImg_h = imread(strTempImg_wafter);
+	tempImg_s = imread(strTempImg_mask);
 
 	bool bHollowCross;
 	double dHitThre;
-	if (m_bDarkerEnv)
+	if (m_nAlgMode == 0)
 	{
-		tempImg = imread(strTempImg_wafter);
 		bHollowCross = true;
 		dHitThre = -0.7;  //暗场的参数
 	}
-	else {
-		tempImg = imread(strTempImg_mask);
+	else if (m_nAlgMode == 1) {
 		bHollowCross = false;
 		dHitThre = -0.5;  //明场的参数;
 	}
+	else
+		return;
 
 	clock_t s, e;
 	s = clock();
 
 	//首先检测到有十字的区域;
 	CMarkerFinder mf;
+	mf.Init(tempImg_h,tempImg_s,Mat::Mat(),Mat::Mat());
 	vector<LocMarker> vecMarkerArea;
 	mf.LocateCrossAreaByHog(srcImg, dHitThre, bHollowCross, vecMarkerArea);
 
@@ -373,7 +401,7 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 	for (int i = 0; i < vecMarkerArea.size(); i++)
 		vecMarkerRect.push_back(vecMarkerArea[i].rect);
 	vector<LocMarker> vecResult;
-	mf.LocateMarkerByTempMatch(srcImg, tempImg, vecMarkerRect, 0.3, vecResult);
+	mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.3, vecResult);
 
 	CString strMsg;
 	e = clock();
@@ -398,10 +426,12 @@ void CMarkerMatchUIDlg::SaveResults(Mat srcImg, vector<LocMarker> vecResult) {
 	string strSolidCross = "d:\\CrossData\\SolidCross\\";
 
 	string strPath;
-	if (m_bDarkerEnv)
+	if (m_nAlgMode == 0)
 		strPath = strHollowCross;
-	else
+	else if (m_nAlgMode == 1)
 		strPath = strSolidCross;
+	else if (m_nAlgMode == 2)
+		return;
 
 	int nSize = vecResult.size();
 	int mon, d, h, m, ms;
@@ -447,11 +477,24 @@ void CMarkerMatchUIDlg::OnBnClickedButtonBatch() {
 
 		Mat srcImg = imread(strFileName.GetBuffer(0));
 
-		//非通用的检测方法，通过文字区域定位;
-		if (!m_bGenMarkerDet)
-			FindMarker_withText(srcImg);
+		if (m_nAlgMode == 2)
+		{
+
+		}
 		else
-			FindMarker_General_HogTemp(srcImg);
+		{
+			//非通用的检测方法，通过文字区域定位;
+			if (!m_bGenMarkerDet)
+				FindMarker_withText(srcImg);
+			else
+				FindMarker_General_HogTemp(srcImg);
+		}
+
 	}
-	
+}
+
+void CMarkerMatchUIDlg::OnBnClickedRadioFinetune()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_nAlgMode = 2;
 }

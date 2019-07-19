@@ -38,25 +38,30 @@ class CMarkerFinder
 public:
 	CMarkerFinder();
 	virtual ~CMarkerFinder();
+	bool Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern);
+	void FinalFinetune(Mat srcImg, Mat &bImg);
 	static void GenerateBImg(Mat srcImg, Mat & bImg);
+	//////////////////////////基于文字定位的方案//////////////////////
 	//定位文字区域;
 	static bool LocateTextArea(Mat srcImg, LocTexParam struLTParam, Mat &bImg, vector<Rect> & vecLoc);
-	//定位marker具体位置;
-	static bool LocateMarkerByTempMatch(Mat srcImg, Mat templateImg, vector<Rect> vecMarkerAreaRect,
-		                                float dMatchThre, vector<LocMarker> &vecMarkerLoc);
-
 	//查找明场下的marker区域，实心十字;
 	static bool FindMaskMarkerArea(Mat srcImg, Mat bImg, vector<Rect>vecTextLoc, vector<Rect> &vecMarkerRect);
 	//查找暗场下的marker区域,空心十字;
 	static bool FindWafterMarkerArea(Mat srcImg, Mat bImg, LocWafterMarkerParam wmp, 
 		                      vector<Rect>vecTextLoc, vector<Rect> &vecMarkerAreaRect);
-
+	
+	////////////////////////////通用检测方案///////////////////////////
 	//测试用;
-	static bool LocateTemplate(Mat srcImg, Mat tempImg, int nMaxCount,
+	static bool LocateTemplate(Mat srcImg, Mat tempImg, float fMatchThre, int nMaxCount,
 		vector<LocMarker> & vecTempRect);
 
+	//分别用于定位明场/暗场中的特定pattern，pattern图由init传入;
+	bool LocatePattern(Mat srcImg, bool bHcPattern, int nMaxCount, vector<LocMarker> & vecFound);
+	//定位marker具体位置;
+	bool LocateMarkerByTempMatch(Mat srcImg, bool bHollowCross, vector<Rect> vecMarkerAreaRect,
+		float dMatchThre, vector<LocMarker> &vecMarkerLoc);
 	//通用版的十字检测;
-	void LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHollowCross, vector<LocMarker> & vecFound);
+	bool LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHollowCross, vector<LocMarker> & vecFound);
 
 private:
 	static void   FindTextCord(Mat bImg, LocTexParam struLTParam, vector<Rect> & vecRect);
@@ -65,5 +70,10 @@ private:
 	HOGDescriptor m_hcHog;  //for hollowcross detector;
 	HOGDescriptor m_scHog;  //for solidcross detector;
 	
+	//用于匹配和检测的,都是灰度图；
+	Mat m_hcMarker;  //暗场hollow cross marker;
+	Mat m_scMarker;  //明场solid cross marker;
+	Mat m_hcPattern; //暗场pattern;
+	Mat m_scPattern; //明场pattern;
 };
 
