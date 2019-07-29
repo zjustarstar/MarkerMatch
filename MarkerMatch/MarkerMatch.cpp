@@ -6,6 +6,7 @@
 #include "Train.h"
 #include <opencv2\opencv.hpp>
 #include <opencv2/imgproc/types_c.h>
+#include "..\\LibMarkerLoc\\LocMarker.h"
 
 using namespace std;
 using namespace cv;
@@ -28,7 +29,7 @@ int findmarker() {
 	clock_t s, e;
 	vector<LocMarker> vecTempRect;
 	s = clock();
-	CMarkerFinder::LocateTemplate(srcImg, tempImg, 6, vecTempRect);
+	CMarkerFinder::LocateTemplate(srcImg, tempImg, 0.4, 6, vecTempRect);
 	e = clock();
 	cout << "The LocTemp time is: " << (double)(e - s) / CLOCKS_PER_SEC * 1000 << "ms" << endl;
 
@@ -79,29 +80,17 @@ void DrawLocResult(Mat srcImg, Scalar color, vector<LocMarker> vecResult, bool b
 }
 
 void testTemMatch() {
-	string strFile = "E:\\MyProject\\MarkerMatch\\A4ºÍB1\\20190524163520036.jpg";
-	string strTempFile = "E:\\MyProject\\MarkerMatch\\template\\temp-2.jpg";
+	string strFile = "d:\\1.jpg";
+	string strTempFile = "d:\\temp.bmp";
+	//string strTempFile = "E:\\MyProject\\MarkerMatch\\template\\temp-2.jpg";
 	Mat srcImg = imread(strFile);
-
 	Mat tempImg = imread(strTempFile, 0);
-	Mat bImg;
-	threshold(tempImg, bImg, 0, 255, THRESH_OTSU);
 
-	Mat resizedTempImg, resizedSrcImg;
-	int nScale = 4;
-	resize(srcImg, resizedSrcImg, cvSize(srcImg.cols / nScale, srcImg.rows / nScale));
-	resize(bImg, resizedTempImg, cvSize(bImg.cols / nScale, bImg.rows / nScale));
-
+	CMarkerFinder mf;
+	mf.Init(tempImg, tempImg, tempImg, tempImg);
 	vector<LocMarker> vecRect;
-	CMarkerFinder::LocateTemplate(resizedSrcImg, resizedTempImg, 2, vecRect);
-	for (int j = 0; j < vecRect.size(); j++)
-	{
-		vecRect[j].rect.x *= nScale;
-		vecRect[j].rect.y *= nScale;
-		vecRect[j].rect.width *= nScale;
-		vecRect[j].rect.height *= nScale;
-	}
-
+	mf.LocatePattern(srcImg, true, 2, vecRect);
+	
 	DrawLocResult(srcImg, Scalar(0, 0, 255), vecRect, true);
 
 	namedWindow("srcimg", 0);
@@ -109,8 +98,17 @@ void testTemMatch() {
 	imshow("srcimg", srcImg);
 }
 
+void testDLL() {
+	string strHCFile = "E:\\MyProject\\MarkerMatch\\template\\temp_hollowcross.jpg";
+	string strSCFile = "E:\\MyProject\\MarkerMatch\\template\\temp_solidcross.jpg";
+	string strpattern = "E:\\MyProject\\MarkerMatch\\template\\temp-2.jpg";
+
+
+}
+
 int main()
 {
+	/*
 	string stra = "E:\\MyProject\\MarkerMatch\\Ñù±¾\\SolidHollowCross\\12111259_0.jpg";
 	Mat a = imread(stra);
 	//a = 255 - a;
@@ -129,8 +127,9 @@ int main()
 
 	namedWindow("2");
 	imshow("2", b);
+	*/
 
-	//testTemMatch();
+	testTemMatch();
 
 	//startTrain();
 	//startTest(srcImg);

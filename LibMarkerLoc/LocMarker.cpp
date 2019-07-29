@@ -11,30 +11,51 @@ using namespace cv;
 #endif
 
 CMarkerFinder g_mf;
+static int k1, k2;
 
 // 初始化检测算子,以及检测用的各种图像;
 extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg, ImgInfo hPatternImg, ImgInfo sPatternImg)
 {
-	Mat _hcImg(hcImg.nH, hcImg.nW, CV_8UC3, hcImg.pData, hcImg.nStep);
-	Mat _scImg(scImg.nH, scImg.nW, CV_8UC3, scImg.pData, scImg.nStep);
+	int nType = CV_8UC3;
+	if (hcImg.nChannels == 1)
+		nType = CV_8UC1;
+	Mat _hcImg(hcImg.nH, hcImg.nW, nType, hcImg.pData, hcImg.nStep);
+
+	nType = CV_8UC3;
+	if (scImg.nChannels == 1)
+		nType = CV_8UC1;
+	Mat _scImg(scImg.nH, scImg.nW, nType, scImg.pData, scImg.nStep);
 
 	if (_hcImg.empty() || _scImg.empty())
 		return ERROR_EMPTY_MARKER;
 
 	Mat hpImg;
 	if (hPatternImg.pData && hPatternImg.nW>0 && hPatternImg.nH>0)
-		hpImg = Mat::Mat(hPatternImg.nH, hPatternImg.nW, CV_8UC3, hPatternImg.pData, hPatternImg.nStep);
+	{
+		nType = CV_8UC3;
+		if (hPatternImg.nChannels == 1)
+			nType = CV_8UC1;
+		hpImg = Mat::Mat(hPatternImg.nH, hPatternImg.nW, nType, hPatternImg.pData, hPatternImg.nStep);
+	}
 	else
 		hpImg = Mat::Mat();
 
 	Mat spImg;
-	if (sPatternImg.pData && sPatternImg.nW>0 && sPatternImg.nH>0)
+	if (sPatternImg.pData && sPatternImg.nW > 0 && sPatternImg.nH > 0)
+	{
+		nType = CV_8UC3;
+		if (sPatternImg.nChannels == 1)
+			nType = CV_8UC1;
 		spImg = Mat::Mat(sPatternImg.nH, sPatternImg.nW, CV_8UC3, sPatternImg.pData, sPatternImg.nStep);
+	}
 	else
 		spImg = Mat::Mat();
 
 	if (!g_mf.Init(_hcImg, _scImg, hpImg, spImg))
 		return ERROR_FAIL_LOADPARM;
+
+	k1 = 0;
+	k2 = 0;
 
 	return ERROR_NO;
 }
@@ -42,12 +63,19 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg, I
 //检测到的pattern个数;
 extern "C" _declspec(dllexport) bool LocatePattern(ImgInfo img, bool bHollowCross, int * nSize, LocRect * pRect) {
 	
-	Mat srcImg(img.nH, img.nW, CV_8UC3, img.pData, img.nStep);
-	if (srcImg.empty() || img.nH <= 0 || img.nW <= 0)
+	if (k1 > 5000)
+		return false;
+
+	int nTypes = CV_8UC3;
+	if (img.nChannels == 1)
+		nTypes = CV_8UC1;
+
+	Mat tempImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
+	if (tempImg.empty() || img.nH <= 0 || img.nW <= 0)
 		return false;
 
 	vector<LocMarker> vecFound;
-	bool bRet = g_mf.LocatePattern(srcImg, bHollowCross, 2, vecFound);
+	bool bRet = g_mf.LocatePattern(tempImg, bHollowCross, 2, vecFound);
 	(*nSize) = vecFound.size();
 	for (int i = 0; i < vecFound.size(); i++)
 	{
@@ -58,23 +86,22 @@ extern "C" _declspec(dllexport) bool LocatePattern(ImgInfo img, bool bHollowCros
 		pRect[i].fConf = vecFound[i].fConfidence;
 	}
 
+	k1++;
+
 	return true;
 }
 
 //检测到的十字丝;
 extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross, int * nSize, LocRect * pRect) {
-	/*(*nSize) = 1;
 
-	pRect[0].x = 50;
-	pRect[0].y = 50;
-	pRect[0].w = 120;
-	pRect[0].h = 450;
-	pRect[0].fConf = 0.92;
+	if (k2 > 5000)
+		return false;
 
-	Mat srcImg(img.nH, img.nW, CV_8UC3, img.pData,img.nStep);
-	imwrite("d:\\xxxxx.jpg", srcImg);
-	*/
-	Mat srcImg(img.nH, img.nW, CV_8UC3, img.pData, img.nStep);
+	int nTypes = CV_8UC3;
+	if (img.nChannels == 1)
+		nTypes = CV_8UC1;
+
+	Mat srcImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
 
 	double dHitThre;
 	if (bHollowCross)
@@ -104,5 +131,7 @@ extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross,
 		pRect[i].fConf = vecFound[i].fConfidence;
 	}
 
+	k2++;
+	
 	return true;
 }

@@ -116,7 +116,10 @@ bool CMarkerFinder::LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHoll
 	Mat resizeSrcImg;
 	resize(srcImg, resizeSrcImg, cvSize(srcImg.cols / nScale, srcImg.rows / nScale));
 	Mat graySrcImg;
-	cvtColor(resizeSrcImg, graySrcImg, CV_BGR2GRAY);
+	if (resizeSrcImg.channels() == 3)
+		cvtColor(resizeSrcImg, graySrcImg, CV_BGR2GRAY);
+	else
+		graySrcImg = resizeSrcImg;
 
 	vector< Rect > detections;
 	vector< double > foundWeights;
@@ -129,7 +132,7 @@ bool CMarkerFinder::LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHoll
 	{
 		//实心标记检测时，权重过低的不要;经验值;
 		if (!bHollowCross) {
-			if (foundWeights[i] < 0.3)
+			if (foundWeights[i] < 0.2)
 				continue;
 		}
 
@@ -143,6 +146,7 @@ bool CMarkerFinder::LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHoll
 		
 		vecFound.push_back(lm);
 	}
+
 }
 
 //利用梯度生成2值图;
@@ -306,9 +310,9 @@ bool CMarkerFinder::LocatePattern(Mat srcImg, bool bHcPattern,int nMaxCount, vec
 	resize(srcImg, resizedSrcImg, cvSize(srcImg.cols / nScale, srcImg.rows / nScale));
 	resize(patternImg, resizedTempImg, cvSize(patternImg.cols / nScale, patternImg.rows / nScale));
 
-	//最多两个,匹配阈值0.8;
+	//最多两个,匹配阈值0.6;
 	vector<LocMarker> vecRect;
-	CMarkerFinder::LocateTemplate(resizedSrcImg, resizedTempImg, 2, 0.8, vecRect);
+	CMarkerFinder::LocateTemplate(resizedSrcImg, resizedTempImg, 0.6, 2, vecRect);
 	for (int j = 0; j < vecRect.size(); j++)
 	{
 		vecRect[j].rect.x *= nScale;
@@ -421,7 +425,12 @@ bool CMarkerFinder::LocateMarkerByTempMatch(Mat srcImg, bool bHollowCross, vecto
 
 		Mat graySrcImg;
 		Mat BSrcImg;
-		cvtColor(roiImg, graySrcImg, CV_BGR2GRAY);
+
+		if (roiImg.channels() == 3)
+			cvtColor(roiImg, graySrcImg, CV_BGR2GRAY);
+		else
+			graySrcImg = roiImg;
+
 		threshold(graySrcImg, BSrcImg, 0, 255, THRESH_OTSU);
 
 		//二值图像的匹配：
@@ -714,6 +723,29 @@ void CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg) {
 		fRatio = countNonZero(b)*1.0 / (b.rows*b.cols*1.0);
 	}
 
-	bImg = b;
+	Mat resImg;
+	matchTemplate(b, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+
+	double minValue, maxValue;
+	Point minLoc, maxLoc;
+
+	Rect r;
+	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+	r.x = maxLoc.x;
+	r.y = maxLoc.y;
+	r.width = m_scMarker.cols;
+	r.height = m_scMarker.rows;
+
+	cv::Point p;
+	p.x = r.x + r.width / 2;
+	p.y = r.y + r.height / 2;
+	circle(srcImg, p, 2, Scalar(0, 0, 255), 1);
+	rectangle(srcImg, r, Scalar(255, 0, 0), 2);
+	
+	bImg = srcImg;
 }
 
+void CMarkerFinder::Test() {
+	imwrite("d:\\hollowcross.jpg", m_hcMarker);
+	imwrite("d:\\hcpattern.jpg", m_hcPattern);
+}

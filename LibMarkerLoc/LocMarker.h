@@ -1,4 +1,3 @@
-
 #define  ERROR_NO             0
 #define  ERROR_EMPTY_MARKER  -1
 #define  ERROR_FAIL_LOADPARM -2
@@ -17,9 +16,14 @@ typedef struct LocRect {
 
 typedef struct ImgInfo {
 	unsigned char * pData;  //图像数据;
+	int nChannels;          //图像通道数; nChannels=1表示灰度图,nChannels=3表示RGB彩色图;
 	int nW;
 	int nH;
 	int nStep;
+};
+
+typedef struct LocRectArray {
+	LocRect   lr[20];
 };
 
 /*检测器初始化

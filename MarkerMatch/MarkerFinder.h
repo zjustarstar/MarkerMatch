@@ -36,6 +36,7 @@ typedef struct LocMarker {
 class CMarkerFinder
 {
 public:
+	void Test();
 	CMarkerFinder();
 	virtual ~CMarkerFinder();
 	bool Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern);
@@ -65,6 +66,7 @@ public:
 
 private:
 	static void   FindTextCord(Mat bImg, LocTexParam struLTParam, vector<Rect> & vecRect);
+	
 
 private:
 	HOGDescriptor m_hcHog;  //for hollowcross detector;

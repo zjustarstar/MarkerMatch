@@ -53,6 +53,7 @@ private:
 	void SaveResults(Mat srcImg, vector<LocMarker> vecResult);
 
 public:
+	CMarkerFinder  m_mf;
 	CEdit m_editFilePath;
 	CListBox m_lbFiles;
 	CStatic m_sttTotal;

@@ -80,6 +80,15 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	m_nDistToText = 50;
 	UpdateData(FALSE);
 
+	//暗/明场template;
+	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\temp_solidcross.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
+	Mat tempImg_h, tempImg_s;
+	tempImg_h = imread(strTempImg_wafter);
+	tempImg_s = imread(strTempImg_mask);
+	//设置检测用的cross marker;
+	m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat());
+
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -223,8 +232,7 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 	if (m_nAlgMode == 2)
 	{
 		Mat b;
-		CMarkerFinder mf;
-		mf.FinalFinetune(srcImg, b);
+		m_mf.FinalFinetune(srcImg, b);
 		srcImg = b;
 	}
 	//其它检测;
@@ -366,13 +374,6 @@ void CMarkerMatchUIDlg::FindMarker_General_Temp(Mat srcImg) {
 //通用的marker检测方法，结合hog和template match;
 void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 
-	//明场template;
-	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\temp_solidcross.jpg";
-	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
-	Mat tempImg_h,tempImg_s;
-	tempImg_h = imread(strTempImg_wafter);
-	tempImg_s = imread(strTempImg_mask);
-
 	bool bHollowCross;
 	double dHitThre;
 	if (m_nAlgMode == 0)
@@ -391,17 +392,15 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 	s = clock();
 
 	//首先检测到有十字的区域;
-	CMarkerFinder mf;
-	mf.Init(tempImg_h,tempImg_s,Mat::Mat(),Mat::Mat());
 	vector<LocMarker> vecMarkerArea;
-	mf.LocateCrossAreaByHog(srcImg, dHitThre, bHollowCross, vecMarkerArea);
+	m_mf.LocateCrossAreaByHog(srcImg, dHitThre, bHollowCross, vecMarkerArea);
 
 	//然后进行模板匹配;
 	vector<Rect> vecMarkerRect;
 	for (int i = 0; i < vecMarkerArea.size(); i++)
 		vecMarkerRect.push_back(vecMarkerArea[i].rect);
 	vector<LocMarker> vecResult;
-	mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.3, vecResult);
+	m_mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.3, vecResult);
 
 	CString strMsg;
 	e = clock();
