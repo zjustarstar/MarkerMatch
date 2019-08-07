@@ -39,6 +39,7 @@ public:
 	void Test();
 	CMarkerFinder();
 	virtual ~CMarkerFinder();
+	static int IsMoving(Mat preImg, Mat curImg);
 	bool Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern);
 	void FinalFinetune(Mat srcImg, Mat &bImg);
 	static void GenerateBImg(Mat srcImg, Mat & bImg);

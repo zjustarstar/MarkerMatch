@@ -94,6 +94,25 @@ bool CMarkerFinder::Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPatter
 	return true;
 }
 
+//判断相机是否移动;nNum为判断出的移动的像素个数;
+int CMarkerFinder::IsMoving(Mat preImg, Mat curImg) {
+	Mat diff;
+	absdiff(preImg, curImg, diff);
+
+	Mat gray;
+	if (diff.channels() == 3)
+		cvtColor(diff, gray, CV_BGR2GRAY);
+	else
+		gray = diff;
+
+	Mat  b;  //二值图;固定阈值;
+	threshold(gray, b, 25, 255, THRESH_BINARY);  //粗调50和细调25，采用不同的参数;
+	int nNonZero = countNonZero(b);
+
+	return nNonZero;
+}
+
+
 //默认detector已经load了vector;
 //dThre为svm检测时的阈值;
 //bHollowCross：true表示检测的是空心十字, false表示检测是实心十字;
@@ -131,10 +150,10 @@ bool CMarkerFinder::LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHoll
 	for (int i = 0; i < detections.size(); i++)
 	{
 		//实心标记检测时，权重过低的不要;经验值;
-		if (!bHollowCross) {
-			if (foundWeights[i] < 0.2)
+		/*if (!bHollowCross) {
+			if (foundWeights[i] < 0)
 				continue;
-		}
+		}*/
 
 		LocMarker lm;
 		lm.rect = detections[i];
@@ -741,8 +760,9 @@ void CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg) {
 	p.y = r.y + r.height / 2;
 	circle(srcImg, p, 2, Scalar(0, 0, 255), 1);
 	rectangle(srcImg, r, Scalar(255, 0, 0), 2);
+	rectangle(b, r, Scalar(0, 0, 0), 1);
 	
-	bImg = srcImg;
+	bImg = b;
 }
 
 void CMarkerFinder::Test() {

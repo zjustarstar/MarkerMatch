@@ -93,17 +93,66 @@ void testTemMatch() {
 	
 	DrawLocResult(srcImg, Scalar(0, 0, 255), vecRect, true);
 
+
 	namedWindow("srcimg", 0);
 	resizeWindow("srcimg", 1368, 912);
 	imshow("srcimg", srcImg);
 }
 
-void testDLL() {
-	string strHCFile = "E:\\MyProject\\MarkerMatch\\template\\temp_hollowcross.jpg";
-	string strSCFile = "E:\\MyProject\\MarkerMatch\\template\\temp_solidcross.jpg";
-	string strpattern = "E:\\MyProject\\MarkerMatch\\template\\temp-2.jpg";
+void test_getbimg(Mat srcImg) {
+	Mat aGray,b;
+	cvtColor(srcImg, aGray, CV_BGR2GRAY);
+	double dthre = threshold(aGray, b, 0, 255, THRESH_OTSU);
+	//threshold(aGray, b, dthre + 10, 255, THRESH_BINARY);
 
+	imwrite("d:\\binary.jpg", b);
 
+	namedWindow("src");
+	imshow("src", srcImg);
+	namedWindow("b");
+	imshow("b", b);
+}
+
+void test_Diff() {
+	string strImg2 = "d:\\cur.jpg";
+	string strImg1 = "d:\\pre.jpg";
+
+	Mat m1, m2;
+	m1 = imread(strImg1);
+	m2 = imread(strImg2);
+
+	int nCount = CMarkerFinder::IsMoving(m1, m2);
+	cout << "nCount=" << nCount << endl;
+
+	int d;
+	cin >> d;
+}
+
+void test_black()  {
+	string strImg1 = "d:\\1.jpg";
+
+	Mat m1;
+	m1 = imread(strImg1);
+
+		Mat grayImg;
+		if (m1.channels() == 1)
+			grayImg = m1;
+		else
+			cvtColor(m1, grayImg, CV_BGR2GRAY);
+
+		//最大最小值;
+		double minVal, maxVal;
+		int    minIdx[2] = {}, maxIdx[2] = {};	// minnimum Index, maximum Index
+		minMaxIdx(grayImg, &minVal, &maxVal, minIdx, maxIdx);
+		cout << "max=" << maxVal << endl;
+
+		//均值;
+		Scalar tempVal = cv::mean(grayImg);
+		int matMean = (int)(tempVal.val[0]);
+		cout << "mean=" << matMean << endl;
+
+		int d;
+		cin >> d;
 }
 
 int main()
@@ -128,8 +177,7 @@ int main()
 	namedWindow("2");
 	imshow("2", b);
 	*/
-
-	testTemMatch();
+	test_black();
 
 	//startTrain();
 	//startTest(srcImg);

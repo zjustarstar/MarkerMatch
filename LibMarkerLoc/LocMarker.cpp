@@ -1,6 +1,7 @@
 #include "LocMarker.h"
 #include "..\\MarkerMatch\MarkerFinder.h"
 #include <opencv2\opencv.hpp>
+#include <opencv2/imgproc/types_c.h>
 
 using namespace cv;
 
@@ -63,8 +64,8 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg, I
 //检测到的pattern个数;
 extern "C" _declspec(dllexport) bool LocatePattern(ImgInfo img, bool bHollowCross, int * nSize, LocRect * pRect) {
 	
-	if (k1 > 5000)
-		return false;
+	//if (k1 > 5000)
+	//	return false;
 
 	int nTypes = CV_8UC3;
 	if (img.nChannels == 1)
@@ -94,8 +95,8 @@ extern "C" _declspec(dllexport) bool LocatePattern(ImgInfo img, bool bHollowCros
 //检测到的十字丝;
 extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross, int * nSize, LocRect * pRect) {
 
-	if (k2 > 5000)
-		return false;
+	//if (k2 > 5000)
+	//	return false;
 
 	int nTypes = CV_8UC3;
 	if (img.nChannels == 1)
@@ -134,4 +135,60 @@ extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross,
 	k2++;
 	
 	return true;
+}
+
+extern "C" _declspec(dllexport) bool IsMoving(ImgInfo preImg, ImgInfo curImg, int nThre, int * nCount) {
+
+	if (preImg.nChannels != curImg.nChannels)
+		return false;
+
+	int nTypes = CV_8UC3;
+	if (preImg.nChannels == 1)
+		nTypes = CV_8UC1;
+	Mat pImg(preImg.nH, preImg.nW, nTypes, preImg.pData, preImg.nStep);
+	Mat cImg(curImg.nH, curImg.nW, nTypes, curImg.pData, curImg.nStep);
+
+	Mat diff;
+	absdiff(pImg, cImg, diff);
+
+	Mat gray;
+	if (diff.channels() == 3)
+		cvtColor(diff, gray, CV_BGR2GRAY);
+	else
+		gray = diff;
+
+	Mat  b;  //二值图;固定阈值;
+	//粗调:nThre设为50，精调，nThre设为25比较合适;
+	threshold(gray, b, nThre, 255, THRESH_BINARY);
+	(*nCount) = countNonZero(b);
+
+	return true;
+}
+
+extern "C" _declspec(dllexport) bool IsBlack(ImgInfo img, int * nMean, int * nMax) {
+
+	int nTypes = CV_8UC3;
+	if (img.nChannels == 1)
+		nTypes = CV_8UC1;
+
+	Mat tempImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
+	if (tempImg.empty() || img.nH <= 0 || img.nW <= 0)
+		return false;
+
+	Mat grayImg;
+	if (img.nChannels == 1)
+		grayImg = tempImg;
+	else
+		cvtColor(tempImg, grayImg, CV_BGR2GRAY);
+
+	//最大最小值;
+	double minVal, maxVal;
+	int    minIdx[2] = {}, maxIdx[2] = {};	// minnimum Index, maximum Index
+	minMaxIdx(grayImg, &minVal, &maxVal, minIdx, maxIdx);
+	(*nMax) = maxVal;
+
+	//均值;
+   Scalar tempVal = cv::mean(grayImg);
+	float matMean = tempVal.val[0];
+	(*nMean) = (int)(matMean);
 }

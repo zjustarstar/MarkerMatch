@@ -82,12 +82,13 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 
 	//暗/明场template;
 	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\temp_solidcross.jpg";
-	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_hollowcross.jpg";
 	Mat tempImg_h, tempImg_s;
 	tempImg_h = imread(strTempImg_wafter);
 	tempImg_s = imread(strTempImg_mask);
 	//设置检测用的cross marker;
-	m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat());
+	if (!m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat()))
+		AfxMessageBox("fail to init");
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -233,7 +234,11 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 	{
 		Mat b;
 		m_mf.FinalFinetune(srcImg, b);
-		srcImg = b;
+		//srcImg = b;
+
+		namedWindow("bimg", 0);
+		resizeWindow("bimg", 684, 456);
+		imshow("bimg", b);
 	}
 	//其它检测;
 	else
@@ -300,7 +305,7 @@ void CMarkerMatchUIDlg::DrawTempLocResult(Mat srcImg, Scalar color, vector<LocMa
 void CMarkerMatchUIDlg::FindMarker_withText(Mat srcImg) {
 	//明场template;
 	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\temp_solidcross.jpg";
-	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_mask.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_hollowcross.jpg";
 	Mat tempImg_h = imread(strTempImg_wafter);
 	Mat tempImg_s = imread(strTempImg_mask);
 
@@ -447,6 +452,16 @@ void CMarkerMatchUIDlg::SaveResults(Mat srcImg, vector<LocMarker> vecResult) {
 	{
 		Rect r;
 		r = vecResult[i].rect;
+		r.x -= 10;
+		if (r.x < 0) r.x = 0;
+		r.y -= 10;
+		if (r.y < 0) r.y = 0;
+		r.width += 20;
+		if (r.x + r.width > srcImg.cols)
+			r.width = srcImg.cols - r.x - 1;
+		r.height += 20;
+		if (r.y + r.height > srcImg.rows)
+			r.height = srcImg.rows - r.y - 1;
 
 		char chName[256];
 		sprintf_s(chName, "%d%d%d%d%d_%d.jpg", mon, d, h, m, ms, i);
