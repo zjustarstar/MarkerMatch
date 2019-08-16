@@ -19,6 +19,254 @@ CMarkerFinder::~CMarkerFinder()
 
 }
 
+//y坐标的比较;
+bool VecCmp_H(Vec<int, 5> a1, Vec<int, 5> a2) {
+	return a1.val[1] < a2.val[1];
+}
+
+//x坐标的比较;
+bool VecCmp_V(Vec<int, 5> a1, Vec<int, 5> a2) {
+	return a1.val[0] < a2.val[0];
+}
+
+//nScale 缩放比例;霍夫变换找到的直线很多很接近，需要进一步处理，去掉一些多余的很接近的线;
+void ReArrangeVector_H(vector<Vec<int, 5>> &vecLines, int nScale) {
+
+	vector<Vec<int, 5>> newVector;
+	int nSize = vecLines.size();
+
+	//只有一条线的话，直接返回，不处理;
+	if (nSize == 1)
+		return;
+
+	for (int i = 0; i < nSize - 1; i++)
+	{
+		Vec<int, 5> t0 = vecLines[i];
+		Vec<int, 5> t1 = vecLines[i + 1];
+
+		//找连续的靠的非常近的直线;
+		int nStart = i;
+		while (vecLines[i + 1].val[1] - vecLines[i].val[1] < 20 * nScale)
+			if (i + 1 < nSize)
+				i++;
+		//一共有几条很近的直线
+		int nGap = i - nStart;
+
+		if (nGap == 0)
+			newVector.push_back(t0);
+		//两条很接近的线,取其均值;
+		else if (nGap == 1)
+		{
+			Vec<int, 5> t;
+			t.val[0] = t0.val[0];
+			t.val[1] = (t0.val[1] + t1.val[1]) / 2;  //y坐标均值;
+			t.val[2] = t0.val[2];
+			t.val[3] = (t0.val[3] + t1.val[3]) / 2;  //y坐标均值;
+			t.val[4] = t0.val[4];
+			newVector.push_back(t);
+		}
+		//多条很接近的线;
+		else
+		{
+			int nMiddle = nStart + (nGap + 1) / 2;
+			newVector.push_back(vecLines[nMiddle]);
+		}
+	}
+
+	//将最终结果写回;
+	vecLines.clear();
+	for (int i = 0; i < newVector.size(); i++)
+		vecLines.push_back(newVector[i]);
+}
+
+//nScale 缩放比例;
+void ReArrangeVector_V(vector<Vec<int, 5>> &vecLines, int nScale) {
+
+	vector<Vec<int, 5>> newVector;
+	int nSize = vecLines.size();
+
+	//只有一条线的话，直接返回，不处理;
+	if (nSize == 1)
+		return;
+
+	for (int i = 0; i < nSize - 1; i++)
+	{
+		Vec<int, 5> t0 = vecLines[i];
+		Vec<int, 5> t1 = vecLines[i + 1];
+
+		//找连续的靠的非常近的直线;
+		int nStart = i;
+		while (((vecLines[i + 1].val[0] - vecLines[i].val[0]) < 20 * nScale) && (i + 1 < nSize))
+		{
+			i++;
+		}
+		//一共有几条很近的直线
+		int nGap = i - nStart;
+
+		if (nGap == 0)
+			newVector.push_back(t0);
+		//两条很接近的线,取其均值;
+		else if (nGap == 1)
+		{
+			Vec<int, 5> t;
+			t.val[0] = (t0.val[0] + t1.val[0]) / 2;
+			t.val[1] = t0.val[1];  //y坐标均值;
+			t.val[2] = (t0.val[2] + t1.val[2]) / 2;
+			t.val[3] = t0.val[3];  //y坐标均值;
+			t.val[4] = t0.val[4];
+			newVector.push_back(t);
+		}
+		//多条很接近的线;
+		else
+		{
+			int nMiddle = nStart + (nGap + 1) / 2;
+			newVector.push_back(vecLines[nMiddle]);
+		}
+	}
+
+	//将最终结果写回;
+	vecLines.clear();
+	for (int i = 0; i < newVector.size(); i++)
+		vecLines.push_back(newVector[i]);
+}
+
+//霍夫变换生成的坐标，很可能超出图像边界的。
+//根据这些坐标，计算从上到下的直线，或者从左到右的直线的坐标;
+void RecalPoint(Point &p1, Point &p2, int nHeight, int nWidth, int nAngle) {
+	Point newP1, newP2;
+	float f = (p1.y - p2.y) * 1.0 / (p1.x - p2.x);
+
+	//垂直的线;
+	if (nAngle < 45 || nAngle > 270 + 45) {
+		newP1.y = 0;
+		newP1.x = p1.x - (p1.y - newP1.y) / f;
+		newP2.y = nHeight - 1;
+		newP2.x = p1.x - (p1.y - newP2.y) / f;
+	}
+	//水平的线
+	else
+	{
+		newP1.x = 0;
+		newP1.y = p1.y - (p1.x - newP1.x) * f;
+		newP2.x = nWidth - 1;
+		newP2.y = p1.y - (p1.x - newP2.x) * f;
+	}
+
+	p1 = newP1;
+	p2 = newP2;
+}
+
+//根据输入的图像,查找图像中的水平/垂直边缘;
+bool CMarkerFinder::DetAlignment(Mat srcImage, int &nThre, vector<Vec<int, 5>> & vecFound) {
+	if (srcImage.empty())
+		return false;
+
+	vecFound.clear();
+
+	Mat resizedImg;  //缩小后处理;
+	Mat BImg;        //二值图;
+	int nScale = 4;
+
+	resize(srcImage, resizedImg, cvSize(srcImage.cols / nScale, srcImage.rows / nScale));
+	Mat kern = getStructuringElement(MORPH_ELLIPSE, Size(3, 3));
+	GenerateBImg(resizedImg, BImg);
+	dilate(BImg, BImg, kern);
+
+	//对二值图进行膨胀,然后检测Marker区域;
+	Mat erodeBImg;
+	erode(BImg, erodeBImg, kern);
+	subtract(BImg, erodeBImg, BImg);
+
+	Mat tempImg; 
+	tempImg = BImg;
+
+	vector<Vec2f> lines;
+	// 这里注意第五个参数，表示阈值，阈值越大，表明检测的越精准，速度越快，得到的直线越少（得到的直线都是很有把握的直线）
+	//这里得到的lines是包含rho和theta的，而不包括直线上的点，所以下面需要根据得到的rho和theta来建立一条直线
+	HoughLines(tempImg, lines, 1, CV_PI / 180, nThre);//注意第五个参数，为阈值
+	while (lines.size() > 500){
+		nThre = nThre + 100;
+		HoughLines(tempImg, lines, 1, CV_PI / 180, nThre);
+	}
+	while (lines.size() > 50)
+	{
+		nThre = nThre + (lines.size() / 100 + 1) * 10; //如果数量过多,则每次加的阈值增量更大;
+		lines.clear();
+		tempImg = BImg;
+		HoughLines(tempImg, lines, 1, CV_PI / 180, nThre);
+	}
+	while (lines.size() == 0)
+	{
+		nThre -= 10;
+		lines.clear();
+		tempImg = BImg;
+		HoughLines(tempImg, lines, 1, CV_PI / 180, nThre);
+	}
+
+	vector<Vec<int, 5>> FinalLines_H, FinalLines_V;
+	for (size_t i = 0; i < lines.size(); i++)
+	{
+		float rho = lines[i][0]; //就是圆的半径r
+		float theta = lines[i][1]; //就是直线的角度
+		Point pt1, pt2;
+		double a = cos(theta), b = sin(theta);
+		double x0 = a*rho, y0 = b*rho;
+		pt1.x = cvRound(x0 + 1000 * (-b)) * nScale;
+		pt1.y = cvRound(y0 + 1000 * (a))  * nScale;
+		pt2.x = cvRound(x0 - 1000 * (-b))  * nScale;
+		pt2.y = cvRound(y0 - 1000 * (a))  * nScale;
+		int angle = int(theta / CV_PI * 180);
+
+		//cout << "Line " << i << ": x1=" << pt1.x << ", x2=" << pt2.x << endl;
+
+		//垂直的线;
+		if (angle < 45 || angle > 270 + 45)
+			FinalLines_V.push_back(Vec<int, 5>(pt1.x, pt1.y, pt2.x, pt2.y, angle));
+		//水平的线;
+		else
+			FinalLines_H.push_back(Vec<int, 5>(pt1.x, pt1.y, pt2.x, pt2.y, angle));
+	}
+	//cout << endl;
+
+	//排序;
+	int nSize = FinalLines_H.size();
+	std::sort(FinalLines_H.begin(), FinalLines_H.end(), VecCmp_H);
+	nSize = FinalLines_V.size();
+	std::sort(FinalLines_V.begin(), FinalLines_V.end(), VecCmp_V);
+
+	//处理靠的太近的线段;
+	vector<Vec<int, 5>> vecFinal;
+	ReArrangeVector_H(FinalLines_H, nScale);
+	ReArrangeVector_V(FinalLines_V, nScale);
+
+	nSize = FinalLines_H.size();
+	for (int i = 0; i < nSize; i++)
+		vecFinal.push_back(FinalLines_H[i]);
+	nSize = FinalLines_V.size();
+	for (int i = 0; i < nSize; i++)
+		vecFinal.push_back(FinalLines_V[i]);
+
+	for (size_t i = 0; i < vecFinal.size(); i++)
+	{
+		Vec<int, 5> l = vecFinal[i];
+		Point pt1, pt2;
+		pt1.x = l[0];
+		pt1.y = l[1];
+		pt2.x = l[2];
+		pt2.y = l[3];
+		RecalPoint(pt1, pt2, srcImage.rows, srcImage.cols, l[4]);
+
+		//最终图像画面内的直线的坐标;
+		Vec<int, 5> newLine;
+		newLine.val[0] = pt1.x;
+		newLine.val[1] = pt1.y;
+		newLine.val[2] = pt2.x;
+		newLine.val[3] = pt2.y;
+		newLine.val[4] = l[4];
+		vecFound.push_back(newLine);
+	}
+}
+
 //分别表示空心十字图，实心十字图,空心pattern图,实心pattern图;
 bool CMarkerFinder::Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern) {
 	//hollow cross
@@ -169,10 +417,13 @@ bool CMarkerFinder::LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHoll
 }
 
 //利用梯度生成2值图;
-void CMarkerFinder::GenerateBImg(Mat srcImg, Mat & bImg) {
+void CMarkerFinder::GenerateBImg(Mat srcImg, Mat & bImg,GRADTYPE gt) {
 
 	Mat gray;
-	cvtColor(srcImg, gray, CV_BGR2GRAY);
+	if (srcImg.channels() == 3)
+		cvtColor(srcImg, gray, CV_BGR2GRAY);
+	else
+		gray = srcImg;
 
 	Mat grad_x, grad_y, grad;
 	Mat abs_grad_x, abs_grad_y;
@@ -189,8 +440,14 @@ void CMarkerFinder::GenerateBImg(Mat srcImg, Mat & bImg) {
 	convertScaleAbs(grad_y, abs_grad_y);
 	addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad);
 
+	Mat input = grad;
+	if (gt == GT_X)
+		input = abs_grad_x;
+	else if (gt == GT_Y)
+		input = abs_grad_y;
+
 	//二值化;
-	double d = threshold(grad, bImg, 0, 255, THRESH_OTSU);
+	double d = threshold(input, bImg, 0, 255, THRESH_OTSU);
 }
 
 //查找暗场下的marker
@@ -331,7 +588,7 @@ bool CMarkerFinder::LocatePattern(Mat srcImg, bool bHcPattern,int nMaxCount, vec
 
 	//最多两个,匹配阈值0.6;
 	vector<LocMarker> vecRect;
-	CMarkerFinder::LocateTemplate(resizedSrcImg, resizedTempImg, 0.6, 2, vecRect);
+	CMarkerFinder::LocateTemplate(resizedSrcImg, resizedTempImg, 0.5, nMaxCount, vecRect);
 	for (int j = 0; j < vecRect.size(); j++)
 	{
 		vecRect[j].rect.x *= nScale;

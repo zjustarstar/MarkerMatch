@@ -192,3 +192,23 @@ extern "C" _declspec(dllexport) bool IsBlack(ImgInfo img, int * nMean, int * nMa
 	float matMean = tempVal.val[0];
 	(*nMean) = (int)(matMean);
 }
+
+extern "C" _declspec(dllexport) int FindAlignment(ImgInfo img, int nThre, int * nSize, MyLines * pLines) {
+
+	Mat srcImg(img.nH, img.nW, CV_8UC3, img.pData, img.nStep);
+
+	vector<Vec<int, 5>> vecFound;
+	int nThreshold = nThre;
+	CMarkerFinder::DetAlignment(srcImg, nThreshold, vecFound);
+	
+	(*nSize) = vecFound.size();
+	for (int i = 0; i < vecFound.size(); i++)
+	{
+		pLines[i].x1 = vecFound[i].val[0];
+		pLines[i].y1 = vecFound[i].val[1];
+		pLines[i].x2 = vecFound[i].val[2];
+		pLines[i].y2 = vecFound[i].val[3];
+	}
+
+	return nThreshold;
+}

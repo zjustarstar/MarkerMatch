@@ -4,6 +4,12 @@
 using namespace std;
 using namespace cv;
 
+typedef enum GRADTYPE {
+	GT_X,
+	GT_Y,
+	GT_BOTH
+};
+
 //定位文字区域时的参数;
 typedef struct LocTexParam{
 	int nTextBandWThre; //文字宽度;
@@ -39,10 +45,15 @@ public:
 	void Test();
 	CMarkerFinder();
 	virtual ~CMarkerFinder();
+
+	//一些其它用到的函数;
 	static int IsMoving(Mat preImg, Mat curImg);
+	static bool DetAlignment(Mat srcImage, int &nThre, vector<Vec<int, 5>> & vecFound);
+	static void GenerateBImg(Mat srcImg, Mat & bImg, GRADTYPE gt = GT_BOTH);
+
 	bool Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern);
 	void FinalFinetune(Mat srcImg, Mat &bImg);
-	static void GenerateBImg(Mat srcImg, Mat & bImg);
+	
 	//////////////////////////基于文字定位的方案//////////////////////
 	//定位文字区域;
 	static bool LocateTextArea(Mat srcImg, LocTexParam struLTParam, Mat &bImg, vector<Rect> & vecLoc);

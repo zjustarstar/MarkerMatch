@@ -17,6 +17,57 @@ using namespace cv;
 #pragma comment(lib,"opencv_world400.lib")
 #endif
 
+
+void testDirection() {
+	//string strSrcImg = "E:\\MyProject\\MarkerMatch\\数据\\倾斜\\20190814162129447.jpg";
+	string strSrcImg = "E:\\MyProject\\MarkerMatch\\A4和B1\\20190522165103049.jpg";
+	Mat srcImage = imread(strSrcImg);
+
+	int nThre = 250;
+	vector<Vec<int, 5>> vecFinal;
+	CMarkerFinder::DetAlignment(srcImage, nThre, vecFinal);
+	cout << "thre=" << nThre << endl;
+	for (size_t i = 0; i < vecFinal.size(); i++)
+	{
+		Vec<int,5> l = vecFinal[i];
+		Point pt1, pt2;
+		pt1.x = l[0];
+		pt1.y = l[1];
+		pt2.x = l[2];
+		pt2.y = l[3];
+
+		Scalar clr;
+		if ((pt1.x == pt2.x) || (pt1.y == pt2.y)) //直线
+			clr = Scalar(255, 0, 0);
+		else
+			clr = Scalar(0, 0, 255);
+		line(srcImage, pt1, pt2, clr, 4, LINE_AA); //Scalar函数用于调节线段颜色
+
+		cout << "Line " << i << ": x1=" << pt1.x << ", x2=" << pt2.x << ": y1=" << pt1.y << ", y2=" << pt2.y << endl;
+	}
+	imwrite("d:\\final.jpg", srcImage);
+	
+	/*
+	vector<Vec4i> lines;
+	//与HoughLines不同的是，HoughLinesP得到lines的是含有直线上点的坐标的，所以下面进行划线时就不再需要自己求出两个点来确定唯一的直线了
+	HoughLinesP(BImg, lines, 1, CV_PI / 250, 100, 200, 80);//注意第五个参数，为阈值
+
+	//依次画出每条线段
+	for (size_t i = 0; i < lines.size(); i++)
+	{
+		Vec4i l = lines[i] * nScale;
+
+		line(srcImage, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0, 0, 255), 4, LINE_AA); //Scalar函数用于调节线段颜色
+
+		cout << "Line " << i << ": x1=" << l[0] << ", x2=" << l[2] << endl;
+	}*/
+
+	namedWindow("dst", 0);
+	resizeWindow("dst", 1368, 912);
+	imshow("dst", srcImage);
+
+}
+
 int findmarker() {
 	//string strSrcImg = "d:\\aa.jpg";
 	string strSrcImg = "E:\\MyProject\\MarkerMatch\\A4和B1\\20190522164741972.jpg";
@@ -80,11 +131,13 @@ void DrawLocResult(Mat srcImg, Scalar color, vector<LocMarker> vecResult, bool b
 }
 
 void testTemMatch() {
-	string strFile = "d:\\1.jpg";
-	string strTempFile = "d:\\temp.bmp";
+	string strFile = "d:\\p1.jpg";
+	string strTempFile = "d:\\hcpattern.bmp";
 	//string strTempFile = "E:\\MyProject\\MarkerMatch\\template\\temp-2.jpg";
+	Mat srcImg2;
 	Mat srcImg = imread(strFile);
 	Mat tempImg = imread(strTempFile, 0);
+	srcImg2 = srcImg.clone();
 
 	CMarkerFinder mf;
 	mf.Init(tempImg, tempImg, tempImg, tempImg);
@@ -93,10 +146,28 @@ void testTemMatch() {
 	
 	DrawLocResult(srcImg, Scalar(0, 0, 255), vecRect, true);
 
-
 	namedWindow("srcimg", 0);
 	resizeWindow("srcimg", 1368, 912);
 	imshow("srcimg", srcImg);
+
+	//测试;
+	/*Mat srcBImg, tempBImg;
+	mf.GenerateBImg(srcImg2, srcBImg);
+	mf.GenerateBImg(tempImg, tempBImg);
+	imwrite("d:\\srcBImg.jpg", srcBImg);
+	imwrite("d:\\tempBImg.jpg", tempBImg);
+
+	CMarkerFinder mf2;
+	mf2.Init(tempBImg, tempBImg, tempBImg, tempBImg);
+	vecRect.clear();
+	mf2.LocatePattern(srcBImg, true, 2, vecRect);
+
+	DrawLocResult(srcImg2, Scalar(0, 0, 255), vecRect, true);
+
+	namedWindow("srcBimg", 0);
+	resizeWindow("srcBimg", 1368, 912);
+	imshow("srcBimg", srcImg2);
+	*/
 }
 
 void test_getbimg(Mat srcImg) {
@@ -157,31 +228,16 @@ void test_black()  {
 
 int main()
 {
-	/*
-	string stra = "E:\\MyProject\\MarkerMatch\\样本\\SolidHollowCross\\12111259_0.jpg";
-	Mat a = imread(stra);
-	//a = 255 - a;
-	Mat b;
-	Mat aGray;
-	cvtColor(a, aGray, CV_BGR2GRAY);
-	double dthre = threshold(aGray, b, 0, 255, THRESH_OTSU);
-	float fRatio = countNonZero(b)*1.0 / (b.rows*b.cols*1.0);
-	cout << "1: non-zero=" << fRatio << endl;
-	namedWindow("1");
-	imshow("1", b);
-
-	threshold(aGray, b, dthre - 10, 255, THRESH_BINARY);
-	fRatio = countNonZero(b)*1.0 / (b.rows*b.cols*1.0);
-	cout << "2: non-zero=" << fRatio << endl;
-
-	namedWindow("2");
-	imshow("2", b);
-	*/
-	test_black();
-
+	clock_t s, e;
+	s = clock();
+	//test_black();
+	//testTemMatch();
+	testDirection();
 	//startTrain();
 	//startTest(srcImg);
-
+	e = clock();
+	double dTime = (double)(e - s) / CLOCKS_PER_SEC * 1000;
+	cout << "耗时:" << dTime << "ms" << endl;
 	waitKey(0);
 
     return 0;

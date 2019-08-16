@@ -22,6 +22,14 @@ typedef struct ImgInfo {
 	int nStep;
 };
 
+//一条线段的定义;x1和y1构成一个点，x2和y2构成另外一个点;
+typedef struct MyLines {
+	int x1;
+	int y1;
+	int x2;
+	int y2;
+};
+
 typedef struct LocRectArray {
 	LocRect   lr[20];
 };
@@ -61,3 +69,14 @@ extern "C" _declspec(dllexport) bool IsMoving(ImgInfo preImg, ImgInfo curImg, in
 //输出：nMean表示全图的平均值,nMax表示全图的最大值:可以通过这两个值判断是否为黑图;
 //返回：成功返回true,失败返回false;
 extern "C" _declspec(dllexport) bool IsBlack(ImgInfo img, int * nMean, int * nMax);
+
+/*
+功能：检测图中的对齐线;
+输入: img表示图像，
+      nThre表示阈值。该阈值根据不同的图像有不同的调整。取值约为:100-300之间。该值越大，返回的线越少;
+输出：nSize表示返回的线的个数，最多不超过30条线;
+      pLines表示返回的线的信息;
+返回：由于阈值对于检测结果影响很大,如果输入的阈值过大，则检测不到直线;如果输入的阈值过小,则返回的线太多。
+      算法会自动测算阈值，并返回一个相对理想的阈值，作为参考;
+*/
+extern "C" _declspec(dllexport) int FindAlignment(ImgInfo img, int nThre, int * nSize, MyLines * pLines);
