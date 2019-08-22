@@ -39,9 +39,30 @@ typedef struct LocMarker {
 	}
 };
 
+typedef struct AlgParam {
+	//pattern定位函数;
+	bool  locpattern_bCheckLastNum; //最后一个数字的再次验证;
+	bool  locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
+	float locpattern_fRatio;       //最后一个数字的y坐标比率;
+
+	//finetune函数;
+	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
+
+	AlgParam() {
+		locpattern_bCheckLastNum = false; //默认不进行再次验证;
+		locpattern_bVerticalNum = true;   //默认竖直方向;
+		locpattern_fRatio = 0.8;
+
+		finetune_nHcMargin = 0;
+	}
+
+};
+
 class CMarkerFinder
 {
 public:
+	AlgParam      m_algParams;
+
 	void Test();
 	CMarkerFinder();
 	virtual ~CMarkerFinder();
@@ -51,8 +72,8 @@ public:
 	static bool DetAlignment(Mat srcImage, int &nThre, vector<Vec<int, 5>> & vecFound);
 	static void GenerateBImg(Mat srcImg, Mat & bImg, GRADTYPE gt = GT_BOTH);
 
-	bool Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern);
-	void FinalFinetune(Mat srcImg, Mat &bImg);
+	bool Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern, AlgParam param);
+	void FinalFinetune(Mat srcImg, Mat &bImg, Rect &rectH, Rect &rectS);
 	
 	//////////////////////////基于文字定位的方案//////////////////////
 	//定位文字区域;
@@ -64,8 +85,8 @@ public:
 		                      vector<Rect>vecTextLoc, vector<Rect> &vecMarkerAreaRect);
 	
 	////////////////////////////通用检测方案///////////////////////////
-	//测试用;
-	static bool LocateTemplate(Mat srcImg, Mat tempImg, float fMatchThre, int nMaxCount,
+	//模板匹配;
+	bool LocateTemplate(Mat srcImg, Mat tempImg, float fMatchThre, int nMaxCount,
 		vector<LocMarker> & vecTempRect);
 
 	//分别用于定位明场/暗场中的特定pattern，pattern图由init传入;
@@ -78,11 +99,13 @@ public:
 
 private:
 	static void   FindTextCord(Mat bImg, LocTexParam struLTParam, vector<Rect> & vecRect);
-	
+	//验证定位;
+	bool CheckLocTemp_ByLastNum(Mat srcImg, Mat tempImg, float fMatchThre, Rect r);
 
 private:
 	HOGDescriptor m_hcHog;  //for hollowcross detector;
 	HOGDescriptor m_scHog;  //for solidcross detector;
+
 	
 	//用于匹配和检测的,都是灰度图；
 	Mat m_hcMarker;  //暗场hollow cross marker;

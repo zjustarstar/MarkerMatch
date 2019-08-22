@@ -268,7 +268,7 @@ bool CMarkerFinder::DetAlignment(Mat srcImage, int &nThre, vector<Vec<int, 5>> &
 }
 
 //分别表示空心十字图，实心十字图,空心pattern图,实心pattern图;
-bool CMarkerFinder::Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern) {
+bool CMarkerFinder::Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern, AlgParam param) {
 	//hollow cross
 	m_hcHog.blockSize = cvSize(16, 16);
 	m_hcHog.blockStride = cvSize(8, 8);
@@ -328,16 +328,19 @@ bool CMarkerFinder::Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPatter
 		cvtColor(m_scMarker, m_scMarker, CV_BGR2GRAY);
 	}
 	//pattern图会被转化为二值图进行匹配;
+	double dThre;
 	if (!m_hcPattern.empty()) {
 		if (m_hcPattern.channels() == 3)
 			cvtColor(m_hcPattern, m_hcPattern, CV_BGR2GRAY);
-		threshold(m_hcPattern, m_hcPattern, 0, 255, THRESH_OTSU);
+		dThre = threshold(m_hcPattern, m_hcPattern, 0, 255, THRESH_OTSU);
 	}
 	if (!m_scPattern.empty()) {
 		if (m_scPattern.channels() == 3)
 			cvtColor(m_scPattern, m_scPattern, CV_BGR2GRAY);
 		threshold(m_hcPattern, m_hcPattern, 0, 255, THRESH_OTSU);
 	}
+
+	m_algParams = param;
 
 	return true;
 }
@@ -581,14 +584,16 @@ bool CMarkerFinder::LocatePattern(Mat srcImg, bool bHcPattern,int nMaxCount, vec
 	if (patternImg.empty())
 		return false;
 
+	//imwrite("d:\\pattern.jpg", patternImg);
+
 	Mat resizedTempImg, resizedSrcImg;
 	int nScale = 4;
 	resize(srcImg, resizedSrcImg, cvSize(srcImg.cols / nScale, srcImg.rows / nScale));
 	resize(patternImg, resizedTempImg, cvSize(patternImg.cols / nScale, patternImg.rows / nScale));
 
-	//最多两个,匹配阈值0.6;
+	//最多两个,匹配阈值0.5;
 	vector<LocMarker> vecRect;
-	CMarkerFinder::LocateTemplate(resizedSrcImg, resizedTempImg, 0.5, nMaxCount, vecRect);
+	LocateTemplate(resizedSrcImg, resizedTempImg, 0.5, nMaxCount, vecRect);
 	for (int j = 0; j < vecRect.size(); j++)
 	{
 		vecRect[j].rect.x *= nScale;
@@ -601,6 +606,40 @@ bool CMarkerFinder::LocatePattern(Mat srcImg, bool bHcPattern,int nMaxCount, vec
 	return true;
 }
 
+//通过最后一位数字，验证模板匹配是否合理。
+//有时板和片上的编号只差一位数字，非常接近，这时定位容易出错;
+//srcImg & tempImg: 原图和模板图;
+//fMatchThre:匹配度阈值;
+//r: 原图中定位到的匹配区域;
+bool CMarkerFinder::CheckLocTemp_ByLastNum(Mat srcImg, Mat tempImg, float fMatchThre, Rect r) {
+	float fRatio = m_algParams.locpattern_fRatio;
+
+	//模板中最后一位数字的子区域
+	Mat temp2;
+	Rect rp;
+	if (m_algParams.locpattern_bVerticalNum)
+		rp = Rect(0, tempImg.rows * fRatio, tempImg.cols, tempImg.rows*(1 - fRatio));
+	else
+		rp = Rect(tempImg.cols*fRatio, 0, tempImg.cols*(1 - fRatio), tempImg.rows);
+	temp2 = tempImg(rp);
+
+	float fRatioSrc = fRatio - 0.1; //保证比模板的区域稍微大一点;
+	Mat src1 = srcImg(r);
+	Rect rs(0, src1.rows*fRatioSrc, src1.cols, src1.rows * (1-fRatioSrc));
+	Mat src2 = src1(rs);
+
+	Mat resImg;
+	matchTemplate(src2, temp2, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+
+	double minValue, maxValue;
+	Point minLoc, maxLoc;
+	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+	cout << "2nd max_value= " << maxValue << endl;
+	if (maxValue < fMatchThre)
+		return false;
+	else
+		return true;
+}
 
 
 //在图中查找模板图片;
@@ -663,9 +702,19 @@ bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, float fMatchThre, in
 		k.width = tempImg.cols;
 		k.height = tempImg.rows;
 
-		lm.fConfidence = maxValue;
-		lm.rect = k;
-		vecTempRect.push_back(lm);
+		bool bRet = true;
+		if (m_algParams.locpattern_bCheckLastNum)
+			bRet = CheckLocTemp_ByLastNum(srcBImg, tempGrayImg, fMatchThre, k); //最后一位数字要再次确认;
+
+		if (!bRet)
+			continue;
+		else
+		{
+			lm.fConfidence = maxValue;
+			lm.rect = k;
+			vecTempRect.push_back(lm);
+		}
+
 	}
 
 	return vecTempRect.size();
@@ -984,7 +1033,7 @@ bool CMarkerFinder::LocateTextArea(Mat srcImg, LocTexParam struLTParam, Mat &bIm
 	return true;
 }
 
-void CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg) {
+void CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS) {
 
 	Mat b;
 	Mat GrayImg;
@@ -997,27 +1046,70 @@ void CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg) {
 	while (fRatio < 0.6) {
 		dthre = threshold(GrayImg, b, dthre - 10, 255, THRESH_BINARY);
 		fRatio = countNonZero(b)*1.0 / (b.rows*b.cols*1.0);
+		dthre -= 10;
 	}
-
+	
+	//实心十字检测;
 	Mat resImg;
 	matchTemplate(b, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
 	double minValue, maxValue;
 	Point minLoc, maxLoc;
 
-	Rect r;
+	Rect r_sc;
 	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
-	r.x = maxLoc.x;
-	r.y = maxLoc.y;
-	r.width = m_scMarker.cols;
-	r.height = m_scMarker.rows;
+	r_sc.x = maxLoc.x;
+	r_sc.y = maxLoc.y;
+	r_sc.width = m_scMarker.cols;
+	r_sc.height = m_scMarker.rows;
+	rectS = r_sc;
+	/*
+	Mat beforeB = b;
+	rectangle(beforeB, r_sc, Scalar(0, 0, 0), 1);
+	namedWindow("before_bimg", 0);
+	resizeWindow("before_bimg", 684, 456);
+	imshow("before_bimg", beforeB);
+	*/
+	//虚心十字检测：
+	b(r_sc).setTo(Scalar(255, 255, 255));  //实心区域先全部变成白色;
 
-	cv::Point p;
-	p.x = r.x + r.width / 2;
-	p.y = r.y + r.height / 2;
-	circle(srcImg, p, 2, Scalar(0, 0, 255), 1);
-	rectangle(srcImg, r, Scalar(255, 0, 0), 2);
-	rectangle(b, r, Scalar(0, 0, 0), 1);
+	Mat tempV;
+	Mat newTemp;  //实际的空心十字,可能和模板大小稍有差异;
+	Rect r;
+	r.x = m_algParams.finetune_nHcMargin;
+	r.y = m_algParams.finetune_nHcMargin;
+	r.width = m_hcMarker.cols - 2*m_algParams.finetune_nHcMargin;
+	r.height = m_hcMarker.rows - 2*m_algParams.finetune_nHcMargin;
+	newTemp = m_hcMarker(r);
+	bitwise_not(newTemp, tempV);  //空心十字，反色;
+
+	//保证虚心十字区域二值化后有一定数量;
+	int nSize = b.rows*b.cols;
+	int nZeroCount;
+	nZeroCount = nSize - countNonZero(b);
+	while (nZeroCount < 0.05 * nSize)
+	{
+		threshold(GrayImg, b, dthre + 10, 255, THRESH_BINARY);
+		b(r_sc).setTo(Scalar(255, 255, 255));  //实心区域先全部变成白色;
+		nZeroCount = nSize - countNonZero(b);
+		dthre += 10;
+
+		if (dthre > 230)
+			break;
+	}
+
+	matchTemplate(b, tempV, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+
+	Rect r_hc;
+	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+	r_hc.x = maxLoc.x;
+	r_hc.y = maxLoc.y;
+	r_hc.width = tempV.cols;
+	r_hc.height = tempV.rows;
+	rectH = r_hc;
+
+	rectangle(b, r_sc, Scalar(0, 0, 0), 1);
+	rectangle(b, r_hc, Scalar(0, 0, 0), 1);
 	
 	bImg = b;
 }

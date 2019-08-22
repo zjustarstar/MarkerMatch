@@ -80,7 +80,8 @@ int findmarker() {
 	clock_t s, e;
 	vector<LocMarker> vecTempRect;
 	s = clock();
-	CMarkerFinder::LocateTemplate(srcImg, tempImg, 0.4, 6, vecTempRect);
+	CMarkerFinder mf;
+	mf.LocateTemplate(srcImg, tempImg, 0.4, 6, vecTempRect);
 	e = clock();
 	cout << "The LocTemp time is: " << (double)(e - s) / CLOCKS_PER_SEC * 1000 << "ms" << endl;
 
@@ -231,8 +232,8 @@ int main()
 	clock_t s, e;
 	s = clock();
 	//test_black();
-	//testTemMatch();
-	testDirection();
+	testTemMatch();
+	//testDirection();
 	//startTrain();
 	//startTest(srcImg);
 	e = clock();

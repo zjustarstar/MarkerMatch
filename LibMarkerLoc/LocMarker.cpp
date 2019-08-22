@@ -12,10 +12,11 @@ using namespace cv;
 #endif
 
 CMarkerFinder g_mf;
-static int k1, k2;
 
 // 初始化检测算子,以及检测用的各种图像;
-extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg, ImgInfo hPatternImg, ImgInfo sPatternImg)
+extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg, 
+	                                             ImgInfo hPatternImg, ImgInfo sPatternImg,
+	                                             AlgorithParams param)
 {
 	int nType = CV_8UC3;
 	if (hcImg.nChannels == 1)
@@ -52,11 +53,15 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg, I
 	else
 		spImg = Mat::Mat();
 
-	if (!g_mf.Init(_hcImg, _scImg, hpImg, spImg))
-		return ERROR_FAIL_LOADPARM;
+	//算法参数;
+	AlgParam ap;
+	ap.locpattern_bCheckLastNum = param.locpattern_bCheckLastNum;
+	ap.locpattern_bVerticalNum = param.locpattern_bVerticalNum;
+	ap.locpattern_fRatio  = param.locpattern_fRatio;
+	ap.finetune_nHcMargin = param.finetune_nHcMargin;
 
-	k1 = 0;
-	k2 = 0;
+	if (!g_mf.Init(_hcImg, _scImg, hpImg, spImg,ap))
+		return ERROR_FAIL_LOADPARM;
 
 	return ERROR_NO;
 }
@@ -86,8 +91,6 @@ extern "C" _declspec(dllexport) bool LocatePattern(ImgInfo img, bool bHollowCros
 		pRect[i].w = vecFound[i].rect.width;
 		pRect[i].fConf = vecFound[i].fConfidence;
 	}
-
-	k1++;
 
 	return true;
 }
@@ -131,8 +134,6 @@ extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross,
 		pRect[i].w = vecFound[i].rect.width;
 		pRect[i].fConf = vecFound[i].fConfidence;
 	}
-
-	k2++;
 	
 	return true;
 }
@@ -211,4 +212,44 @@ extern "C" _declspec(dllexport) int FindAlignment(ImgInfo img, int nThre, int * 
 	}
 
 	return nThreshold;
+}
+
+extern "C" _declspec(dllexport) int FineTune(ImgInfo img, LocRect roiRect, LocRect * pHRect, LocRect * pSRect) {
+	
+	int nTypes = CV_8UC3;
+	if (img.nChannels == 1)
+		nTypes = CV_8UC1;
+
+	Mat srcImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
+	int nImgW = srcImg.cols;
+	int nImgH = srcImg.rows;
+
+	//参数查验;
+	if (roiRect.x<0 || roiRect.x>nImgW - 1 || 
+		roiRect.y<0 || roiRect.y>nImgH - 1 || 
+		roiRect.w>nImgW-1 || roiRect.h>nImgH-1)
+		return -1;
+
+	Rect r;
+	r.x = roiRect.x;
+	r.y = roiRect.y;
+	r.width = roiRect.w;
+	r.height = roiRect.h;
+
+	Mat roiImg = srcImg(r);
+	Mat bImg;  //用于测试的;
+	Rect rH, rS;
+	g_mf.FinalFinetune(roiImg, bImg, rH, rS);
+
+	pHRect->x = rH.x;
+	pHRect->y = rH.y;
+	pHRect->w = rH.width;
+	pHRect->h = rH.height;
+
+	pSRect->x = rS.x;
+	pSRect->y = rS.y;
+	pSRect->w = rS.width;
+	pSRect->h = rS.height;
+
+	return 0;
 }

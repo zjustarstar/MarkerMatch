@@ -86,8 +86,11 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	Mat tempImg_h, tempImg_s;
 	tempImg_h = imread(strTempImg_wafter);
 	tempImg_s = imread(strTempImg_mask);
+
+	AlgParam ap;
+	ap.finetune_nHcMargin = 4;
 	//设置检测用的cross marker;
-	if (!m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat()))
+	if (!m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(),ap))
 		AfxMessageBox("fail to init");
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
@@ -233,8 +236,23 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 	if (m_nAlgMode == 2)
 	{
 		Mat b;
-		m_mf.FinalFinetune(srcImg, b);
-		//srcImg = b;
+		Rect rH, rS;
+		m_mf.FinalFinetune(srcImg, b,rH,rS);
+
+		//画出结果;
+		cv::Point p_sc;  //实心十字中心点;
+		p_sc.x = rS.x + rS.width / 2;
+		p_sc.y = rS.y + rS.height / 2;
+
+		Point p_hc;     //虚心十字中心点
+		p_hc.x = rH.x + rH.width / 2;
+		p_hc.y = rH.y + rH.height / 2;
+		
+		circle(srcImg, p_hc, 2, Scalar(255, 0, 0), 1);
+		circle(srcImg, p_sc, 2, Scalar(0, 0, 255), 1);
+
+		rectangle(srcImg, rH, Scalar(255, 0, 0), 1);
+		rectangle(srcImg, rS, Scalar(0, 0, 255), 1);
 
 		namedWindow("bimg", 0);
 		resizeWindow("bimg", 684, 456);
@@ -310,7 +328,8 @@ void CMarkerMatchUIDlg::FindMarker_withText(Mat srcImg) {
 	Mat tempImg_s = imread(strTempImg_mask);
 
 	CMarkerFinder mf;
-	mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat());
+	AlgParam ap;
+	mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(),ap);
 
 	clock_t s, e;
 	s = clock();
@@ -388,7 +407,7 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 	}
 	else if (m_nAlgMode == 1) {
 		bHollowCross = false;
-		dHitThre = -0.5;  //明场的参数;
+		dHitThre = 0;  //明场的参数; //原来-0.5
 	}
 	else
 		return;
@@ -448,18 +467,20 @@ void CMarkerMatchUIDlg::SaveResults(Mat srcImg, vector<LocMarker> vecResult) {
 
 	//为了不重名，按照细到秒的时间保存数据;
 	string strFileName;
+	int xMargin = 40;
+	int yMargin = 40;
 	for (int i = 0; i < nSize; i++)
 	{
 		Rect r;
 		r = vecResult[i].rect;
-		r.x -= 10;
+		r.x -= xMargin;
 		if (r.x < 0) r.x = 0;
-		r.y -= 10;
+		r.y -= xMargin;
 		if (r.y < 0) r.y = 0;
-		r.width += 20;
+		r.width += (xMargin*2);
 		if (r.x + r.width > srcImg.cols)
 			r.width = srcImg.cols - r.x - 1;
-		r.height += 20;
+		r.height += (yMargin*2);
 		if (r.y + r.height > srcImg.rows)
 			r.height = srcImg.rows - r.y - 1;
 

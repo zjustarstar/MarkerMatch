@@ -30,8 +30,23 @@ typedef struct MyLines {
 	int y2;
 };
 
-typedef struct LocRectArray {
-	LocRect   lr[20];
+typedef struct AlgorithParams {
+	//pattern定位函数相关参数;
+	bool  locpattern_bCheckLastNum; //最后一个数字的再次验证;
+	bool  locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
+	float locpattern_fRatio;       //最后一个数字的y坐标比率;
+
+	//finetune函数相关参数;
+	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
+
+	//默认参数;
+	AlgorithParams() {
+		locpattern_bCheckLastNum = false; //默认不进行再次验证;
+		locpattern_bVerticalNum = true;   //默认竖直方向;
+		locpattern_fRatio = 0.8;         
+
+		finetune_nHcMargin = 0;
+	}
 };
 
 /*检测器初始化
@@ -42,7 +57,9 @@ typedef struct LocRectArray {
   输出：无
   返回：成功返回0,失败为非0;
 */
-extern "C" _declspec(dllexport) int initDetector(ImgInfo hcMarkerImg, ImgInfo scMarkerImg, ImgInfo hcPatternImg, ImgInfo scPatternImg);
+extern "C" _declspec(dllexport) int initDetector(ImgInfo hcMarkerImg, ImgInfo scMarkerImg, 
+	                                             ImgInfo hcPatternImg, ImgInfo scPatternImg,
+	                                             AlgorithParams param);
 
 /* 检测到的pattern个数以及坐标;
    img: 输入的原图;
@@ -80,3 +97,14 @@ extern "C" _declspec(dllexport) bool IsBlack(ImgInfo img, int * nMean, int * nMa
       算法会自动测算阈值，并返回一个相对理想的阈值，作为参考;
 */
 extern "C" _declspec(dllexport) int FindAlignment(ImgInfo img, int nThre, int * nSize, MyLines * pLines);
+
+/* 
+ 功能：精调阶段，检测空心十字和实心十字的位置;
+       输入输出参数的LocRect结构体中的fConf参数，在本函数中没用，无需理会;
+ 输入：img表示图像,
+       roiRect表示Region of Interest,指大致的空心十字在原图中的位置
+ 输出: pHRect,HollyCross Rect,空心十字坐标
+       pSRect,SolidCross Rect,实心十字坐标
+ 返回: 返回值为0，表示正常；返回值非零，表示有错误;
+*/
+extern "C" _declspec(dllexport) int FineTune(ImgInfo img, LocRect roiRect, LocRect * pHRect, LocRect * pSRect);
