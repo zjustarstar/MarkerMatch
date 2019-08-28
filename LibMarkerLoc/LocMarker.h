@@ -32,13 +32,13 @@ typedef struct MyLines {
 
 typedef struct AlgorithParams {
 	//pattern定位函数相关参数;
-	bool  locpattern_bCheckLastNum; //最后一个数字的再次验证;
-	bool  locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
+	int  locpattern_bCheckLastNum; //最后一个数字的再次验证;
+	int  locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
 	float locpattern_fRatio;       //最后一个数字的y坐标比率;
 
 	//finetune函数相关参数;
 	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
-
+	/*
 	//默认参数;
 	AlgorithParams() {
 		locpattern_bCheckLastNum = false; //默认不进行再次验证;
@@ -47,6 +47,7 @@ typedef struct AlgorithParams {
 
 		finetune_nHcMargin = 0;
 	}
+	*/
 };
 
 /*检测器初始化

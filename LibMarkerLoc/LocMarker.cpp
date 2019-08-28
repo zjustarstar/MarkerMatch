@@ -227,7 +227,7 @@ extern "C" _declspec(dllexport) int FineTune(ImgInfo img, LocRect roiRect, LocRe
 	//参数查验;
 	if (roiRect.x<0 || roiRect.x>nImgW - 1 || 
 		roiRect.y<0 || roiRect.y>nImgH - 1 || 
-		roiRect.w>nImgW-1 || roiRect.h>nImgH-1)
+		roiRect.w>nImgW || roiRect.h>nImgH)
 		return -1;
 
 	Rect r;
@@ -239,7 +239,8 @@ extern "C" _declspec(dllexport) int FineTune(ImgInfo img, LocRect roiRect, LocRe
 	Mat roiImg = srcImg(r);
 	Mat bImg;  //用于测试的;
 	Rect rH, rS;
-	g_mf.FinalFinetune(roiImg, bImg, rH, rS);
+	if (!g_mf.FinalFinetune(roiImg, bImg, rH, rS))
+		return -2;
 
 	pHRect->x = rH.x;
 	pHRect->y = rH.y;

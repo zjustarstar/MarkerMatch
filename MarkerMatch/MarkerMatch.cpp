@@ -132,7 +132,7 @@ void DrawLocResult(Mat srcImg, Scalar color, vector<LocMarker> vecResult, bool b
 }
 
 void testTemMatch() {
-	string strFile = "d:\\p1.jpg";
+	string strFile = "d:\\12.jpg";
 	string strTempFile = "d:\\hcpattern.bmp";
 	//string strTempFile = "E:\\MyProject\\MarkerMatch\\template\\temp-2.jpg";
 	Mat srcImg2;
@@ -141,7 +141,11 @@ void testTemMatch() {
 	srcImg2 = srcImg.clone();
 
 	CMarkerFinder mf;
-	mf.Init(tempImg, tempImg, tempImg, tempImg);
+	AlgParam ap;
+	ap.locpattern_bCheckLastNum = true;
+	ap.locpattern_bVerticalNum = true;
+	ap.locpattern_fRatio = 0.8;
+	mf.Init(tempImg, tempImg, tempImg, tempImg,ap);
 	vector<LocMarker> vecRect;
 	mf.LocatePattern(srcImg, true, 2, vecRect);
 	

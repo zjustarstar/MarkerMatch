@@ -237,7 +237,17 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 	{
 		Mat b;
 		Rect rH, rS;
+
+		clock_t s, e;
+		s = clock();
+
 		m_mf.FinalFinetune(srcImg, b,rH,rS);
+
+		CString strMsg;
+		e = clock();
+		double dTime = (double)(e - s) / CLOCKS_PER_SEC * 1000;
+		strMsg.Format("检测耗时:%.1f MS", dTime);
+		m_sttTotalTime.SetWindowTextA(strMsg);
 
 		//画出结果;
 		cv::Point p_sc;  //实心十字中心点;

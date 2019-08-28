@@ -342,6 +342,14 @@ bool CMarkerFinder::Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPatter
 
 	m_algParams = param;
 
+	/*
+	char msg[256];
+	sprintf_s(msg, "d:\\init_%d_%d_%.2f_%d.jpg", param.locpattern_bCheckLastNum,
+		param.locpattern_bVerticalNum, param.locpattern_fRatio, param.finetune_nHcMargin);
+	string strFile(msg);
+	imwrite(strFile, hcPattern);
+	*/
+
 	return true;
 }
 
@@ -623,9 +631,14 @@ bool CMarkerFinder::CheckLocTemp_ByLastNum(Mat srcImg, Mat tempImg, float fMatch
 		rp = Rect(tempImg.cols*fRatio, 0, tempImg.cols*(1 - fRatio), tempImg.rows);
 	temp2 = tempImg(rp);
 
+	//检测到的区域,选择其中的最后数字子区域;
 	float fRatioSrc = fRatio - 0.1; //保证比模板的区域稍微大一点;
 	Mat src1 = srcImg(r);
-	Rect rs(0, src1.rows*fRatioSrc, src1.cols, src1.rows * (1-fRatioSrc));
+	Rect rs;
+	if (m_algParams.locpattern_bVerticalNum)
+		rs = Rect(0, src1.rows*fRatioSrc, src1.cols, src1.rows * (1 - fRatioSrc));
+	else
+		rs = Rect(src1.cols*fRatioSrc, 0, src1.cols*(1 - fRatioSrc), src1.rows);
 	Mat src2 = src1(rs);
 
 	Mat resImg;
@@ -1033,25 +1046,38 @@ bool CMarkerFinder::LocateTextArea(Mat srcImg, LocTexParam struLTParam, Mat &bIm
 	return true;
 }
 
-void CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS) {
+//检测实心十字坐标;
+Rect CMarkerFinder::FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre) {
+	double dRatioThre = 0.8;  //有些图片0.6即可;
 
-	Mat b;
-	Mat GrayImg;
-	cvtColor(srcImg, GrayImg, CV_BGR2GRAY);
-	double dthre = threshold(GrayImg, b, 0, 255, THRESH_OTSU);
-	float fRatio = countNonZero(b)*1.0 / (b.rows*b.cols*1.0);
-	cout << "1: non-zero=" << fRatio << endl;
+	int nSize = bImg.rows*bImg.cols;
+	float fRatio = countNonZero(bImg)*1.0 / nSize;
+	//cout << "1: non-zero=" << fRatio << endl;
 
+	double dFloor = dthre * 0.5; //阈值不能过低;
 	//白色占比达到一定比例，保证二值化后黑色十字比较精准;
-	while (fRatio < 0.6) {
-		dthre = threshold(GrayImg, b, dthre - 10, 255, THRESH_BINARY);
-		fRatio = countNonZero(b)*1.0 / (b.rows*b.cols*1.0);
-		dthre -= 10;
+	while (fRatio < dRatioThre) {
+		dthre = threshold(grayImg, bImg, dthre - 5, 255, THRESH_BINARY);
+		fRatio = countNonZero(bImg)*1.0 / nSize;
+		dthre -= 5;
+
+		if (dthre < dFloor)
+			break;
 	}
-	
+	/*
+	Mat beforeB = bImg;
+	namedWindow("before_bimg", 0);
+	resizeWindow("before_bimg", 684, 456);
+	imshow("before_bimg", beforeB);
+	*/
+
 	//实心十字检测;
 	Mat resImg;
-	matchTemplate(b, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+	/*Mat tempSc;
+	Rect r1(2, 2, m_scMarker.cols - 4, m_scMarker.rows - 4);
+	tempSc = m_scMarker(r1);
+	*/
+	matchTemplate(bImg, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
 	double minValue, maxValue;
 	Point minLoc, maxLoc;
@@ -1062,43 +1088,79 @@ void CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS)
 	r_sc.y = maxLoc.y;
 	r_sc.width = m_scMarker.cols;
 	r_sc.height = m_scMarker.rows;
-	rectS = r_sc;
+
+	return r_sc;
+}
+
+Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
+	double dPhase1_RatioThre = 0.6;  
+	double dPhase2_RatioThre = 0.1;  //有些地方是0.05就可以;
+
+	int nSize = bImg.rows*bImg.cols;
+	float fRatio = countNonZero(bImg)*1.0 / nSize;
+	//cout << "1: non-zero=" << fRatio << endl;
+
+	double dFloor = dthre * 0.5; //阈值不能过低;
+	//白色占比达到一定比例，保证二值化后黑色十字比较精准;
+	while (fRatio < dPhase1_RatioThre) {
+		dthre = threshold(grayImg, bImg, dthre - 10, 255, THRESH_BINARY);
+		fRatio = countNonZero(bImg)*1.0 / nSize;
+		dthre -= 10;
+
+		if (dthre < dFloor)
+			break;
+	}
+
+	//实心十字检测;
+	Mat resImg;
+	matchTemplate(bImg, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+
+	double minValue, maxValue;
+	Point minLoc, maxLoc;
+
+	Rect r_sc;
+	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+	r_sc.x = maxLoc.x;
+	r_sc.y = maxLoc.y;
+	r_sc.width = m_scMarker.cols;
+	r_sc.height = m_scMarker.rows;
+
 	/*
-	Mat beforeB = b;
+	Mat beforeB = bImg;
 	rectangle(beforeB, r_sc, Scalar(0, 0, 0), 1);
 	namedWindow("before_bimg", 0);
 	resizeWindow("before_bimg", 684, 456);
 	imshow("before_bimg", beforeB);
 	*/
+
 	//虚心十字检测：
-	b(r_sc).setTo(Scalar(255, 255, 255));  //实心区域先全部变成白色;
+	bImg(r_sc).setTo(Scalar(255, 255, 255));  //实心区域先全部变成白色;
 
 	Mat tempV;
 	Mat newTemp;  //实际的空心十字,可能和模板大小稍有差异;
 	Rect r;
 	r.x = m_algParams.finetune_nHcMargin;
 	r.y = m_algParams.finetune_nHcMargin;
-	r.width = m_hcMarker.cols - 2*m_algParams.finetune_nHcMargin;
-	r.height = m_hcMarker.rows - 2*m_algParams.finetune_nHcMargin;
+	r.width = m_hcMarker.cols - 2 * m_algParams.finetune_nHcMargin;
+	r.height = m_hcMarker.rows - 2 * m_algParams.finetune_nHcMargin;
 	newTemp = m_hcMarker(r);
 	bitwise_not(newTemp, tempV);  //空心十字，反色;
 
 	//保证虚心十字区域二值化后有一定数量;
-	int nSize = b.rows*b.cols;
 	int nZeroCount;
-	nZeroCount = nSize - countNonZero(b);
-	while (nZeroCount < 0.05 * nSize)
+	nZeroCount = nSize - countNonZero(bImg);
+	while (nZeroCount < dPhase2_RatioThre * nSize) 
 	{
-		threshold(GrayImg, b, dthre + 10, 255, THRESH_BINARY);
-		b(r_sc).setTo(Scalar(255, 255, 255));  //实心区域先全部变成白色;
-		nZeroCount = nSize - countNonZero(b);
+		threshold(grayImg, bImg, dthre + 10, 255, THRESH_BINARY);
+		bImg(r_sc).setTo(Scalar(255, 255, 255));  //实心区域先全部变成白色;
+		nZeroCount = nSize - countNonZero(bImg);
 		dthre += 10;
 
 		if (dthre > 230)
 			break;
 	}
 
-	matchTemplate(b, tempV, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+	matchTemplate(bImg, tempV, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
 	Rect r_hc;
 	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
@@ -1106,12 +1168,112 @@ void CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS)
 	r_hc.y = maxLoc.y;
 	r_hc.width = tempV.cols;
 	r_hc.height = tempV.rows;
-	rectH = r_hc;
+	
+	return r_hc;
+}
 
-	rectangle(b, r_sc, Scalar(0, 0, 0), 1);
-	rectangle(b, r_hc, Scalar(0, 0, 0), 1);
+//对给定的mat定位其开始和结尾
+bool CMarkerFinder::FT_FindBoundary(Mat data, int & s, int & e) {
+
+	double dThre = 30;  //黑色边框区域的均值阈值;
+
+	int nSize = data.cols;
+	int nStart = 0;
+	while (data.at<double>(nStart) < dThre)
+		nStart++;
+	
+	int nEnd = nSize - 1;
+	while (data.at<double>(nEnd) < dThre)
+		nEnd--;
+
+	s = nStart;
+	e = nEnd;
+
+	return true;
+}
+
+//查找原图中的黑色边框区域.黑色边框区域会影响算法;
+//返回的是不包含黑色边框的图像区域;
+bool CMarkerFinder::FT_FindBlackMargin(Mat srcImg,Rect &r) {
+
+	int h = srcImg.rows;
+	int w = srcImg.cols;
+	int nChannel = srcImg.channels();
+
+	//处理灰度图
+	if (nChannel == 3)
+		return false;
+
+	Mat srcR,srcC;  //row和col对应的mat;
+	srcR.create(1, h, CV_64FC1);
+	srcC.create(1, w, CV_64FC1);
+
+	//行的值：
+	for (int i = 0; i < h; i++)
+	{
+		Mat temp = srcImg.rowRange(i, i + 1);
+		double v = mean(temp).val[0];
+		srcR.at<double>(i) = v;
+	}
+
+	//列的值;
+	for (int i = 0; i < w; i++)
+	{
+		Mat temp = srcImg.colRange(i, i + 1);
+		double v = mean(temp).val[0];
+		srcC.at<double>(i) = v;
+	}
+
+	int nRolStart = 0;
+	int nRolEnd   = h - 1;
+	int nColStart = 0;
+	int nColEnd   = w - 1;
+	FT_FindBoundary(srcR, nRolStart, nRolEnd);
+	FT_FindBoundary(srcC, nColStart, nColEnd);
+
+	r.x = nColStart;
+	r.y = nRolStart;
+	r.width = nColEnd - nColStart;
+	r.height = nRolEnd - nRolStart;
+
+	//用于分析的区域不能小于虚心marker的大小;
+	if (r.width < m_hcMarker.cols || r.height < m_hcMarker.rows)
+		return false;
+
+	return true;
+}
+
+bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS) {
+
+	Mat b;
+	Mat GrayImg;
+
+	if (srcImg.channels() == 3)
+		cvtColor(srcImg, GrayImg, CV_BGR2GRAY);
+	else
+		GrayImg = srcImg;
+
+	Rect newRect;
+	if (!FT_FindBlackMargin(GrayImg, newRect))
+		return false;
+
+	Mat gImg = GrayImg(newRect);
+	double dthre = threshold(gImg, b, 0, 255, THRESH_OTSU);
+
+	//查找虚心实心十字坐标;
+	rectS = FT_LocSolidCross(gImg, b, dthre);
+	rectH = FT_LocHollyCross(gImg, b, dthre);
+	rectS.x = rectS.x + newRect.x;
+	rectS.y = rectS.y + newRect.y;
+	rectH.x = rectH.x + newRect.x;
+	rectH.y = rectH.y + newRect.y;
+
+	rectangle(b, rectS, Scalar(0, 0, 0), 1);
+	rectangle(b, rectH, Scalar(0, 0, 0), 1);
 	
 	bImg = b;
+
+	return true;
 }
 
 void CMarkerFinder::Test() {

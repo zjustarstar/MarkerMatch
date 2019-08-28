@@ -41,16 +41,16 @@ typedef struct LocMarker {
 
 typedef struct AlgParam {
 	//pattern定位函数;
-	bool  locpattern_bCheckLastNum; //最后一个数字的再次验证;
-	bool  locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
+	int  locpattern_bCheckLastNum; //最后一个数字的再次验证;
+	int  locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
 	float locpattern_fRatio;       //最后一个数字的y坐标比率;
 
 	//finetune函数;
 	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
 
 	AlgParam() {
-		locpattern_bCheckLastNum = false; //默认不进行再次验证;
-		locpattern_bVerticalNum = true;   //默认竖直方向;
+		locpattern_bCheckLastNum = 0; //默认不进行再次验证;
+		locpattern_bVerticalNum = 1;   //默认竖直方向;
 		locpattern_fRatio = 0.8;
 
 		finetune_nHcMargin = 0;
@@ -73,7 +73,7 @@ public:
 	static void GenerateBImg(Mat srcImg, Mat & bImg, GRADTYPE gt = GT_BOTH);
 
 	bool Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern, AlgParam param);
-	void FinalFinetune(Mat srcImg, Mat &bImg, Rect &rectH, Rect &rectS);
+	bool FinalFinetune(Mat srcImg, Mat &bImg, Rect &rectH, Rect &rectS);
 	
 	//////////////////////////基于文字定位的方案//////////////////////
 	//定位文字区域;
@@ -101,6 +101,11 @@ private:
 	static void   FindTextCord(Mat bImg, LocTexParam struLTParam, vector<Rect> & vecRect);
 	//验证定位;
 	bool CheckLocTemp_ByLastNum(Mat srcImg, Mat tempImg, float fMatchThre, Rect r);
+	//精调阶段的定位;
+	Rect FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre);
+	Rect FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre);
+	bool FT_FindBoundary(Mat data, int & s, int & e);
+	bool FT_FindBlackMargin(Mat srcImg, Rect &r);
 
 private:
 	HOGDescriptor m_hcHog;  //for hollowcross detector;
