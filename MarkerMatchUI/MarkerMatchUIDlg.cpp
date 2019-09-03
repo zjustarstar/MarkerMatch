@@ -69,12 +69,13 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	CEdit * pWnd = (CEdit *)GetDlgItem(IDC_EDIT_DISTTOTEXT);
 	CButton * pBtnDarkerEnv = (CButton *)GetDlgItem(IDC_RADIO_WAFER);
 	CButton * pBtnBrightEnv = (CButton *)GetDlgItem(IDC_RADIO_MASK2);
+	CButton * pBtnFinetune = (CButton *)GetDlgItem(IDC_RADIO_FINETUNE);
 	CButton * pGenDetection = (CButton *)GetDlgItem(IDC_CHECK_GEN_MAKERDETECTOR);
-	pBtnBrightEnv->SetCheck(1);
+	pBtnFinetune->SetCheck(1);
 	pWnd->EnableWindow(FALSE);
 	pGenDetection->SetCheck(1);
 
-	m_nAlgMode = 1;
+	m_nAlgMode = 2;
 	m_bGenMarkerDet = true;
 
 	m_nDistToText = 50;
@@ -215,6 +216,49 @@ void CMarkerMatchUIDlg::ListAllFiles(CString strFilePath)
 	findFile.Close();
 }
 
+//根据十字框微调实心十字rect位置。实心十字如果离虚心十字太近了，则往相反方向稍微移动一点.
+//两者靠的太近时,二值化容易黏在一起,导致匹配时产生偏差.往反方向移动可以抵消这种偏差。
+bool CMarkerMatchUIDlg::AdjustRect(Rect & rH, Rect &rS) {
+	int DIST = 6;  //距离阈值;
+	int MOVE = 3;  //移动值
+	bool bAdjust = false;
+
+	//左边
+	if (abs(rS.x - rH.x) <= DIST)
+	{
+		rS.x += MOVE;
+		bAdjust = true;
+	}
+	//右边
+	else {
+		int rightS = rS.x + rS.width;
+		int rightH = rH.x + rH.width;
+		if (abs(rightH - rightS) <= DIST)
+		{
+			rS.x -= MOVE;
+			bAdjust = true;
+		}
+	}
+
+	//上边;
+	if (abs(rS.y - rH.y) <= DIST)
+	{
+		rS.y += MOVE;
+		bAdjust = true;
+	}
+	else {
+		int bottomS = rS.y + rS.height;
+		int bottomH = rH.y + rH.height;
+		if (abs(bottomH - bottomS) <= DIST)
+		{
+			rS.y -= MOVE;
+			bAdjust = true;
+		}
+	}
+
+	return bAdjust;
+}
+
 void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 {
 	UpdateData(TRUE);
@@ -242,6 +286,9 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		s = clock();
 
 		m_mf.FinalFinetune(srcImg, b,rH,rS);
+		rectangle(srcImg, rS, Scalar(0, 0, 255), 1);
+
+		bool bAjust = AdjustRect(rH, rS);
 
 		CString strMsg;
 		e = clock();
@@ -262,11 +309,18 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		circle(srcImg, p_sc, 2, Scalar(0, 0, 255), 1);
 
 		rectangle(srcImg, rH, Scalar(255, 0, 0), 1);
-		rectangle(srcImg, rS, Scalar(0, 0, 255), 1);
+		if (bAjust)
+			rectangle(srcImg, rS, Scalar(0, 255, 255), 1);
 
 		namedWindow("bimg", 0);
-		resizeWindow("bimg", 684, 456);
+		resizeWindow("bimg", 500, 500);
 		imshow("bimg", b);
+
+		namedWindow("img", 0);
+		resizeWindow("img", 500, 500);
+		imshow("img", srcImg);
+
+		imwrite("d:\\finetune.jpg", srcImg);
 	}
 	//其它检测;
 	else
@@ -276,12 +330,11 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 			FindMarker_withText(srcImg);
 		else
 			FindMarker_General_HogTemp(srcImg);
+
+		namedWindow("img", 0);
+		resizeWindow("img", 684, 456);
+		imshow("img", srcImg);
 	}
-
-
-	namedWindow("img", 0);
-	resizeWindow("img", 684, 456);
-	imshow("img", srcImg);
 }
 
 

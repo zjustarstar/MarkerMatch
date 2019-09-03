@@ -149,19 +149,45 @@ extern "C" _declspec(dllexport) bool IsMoving(ImgInfo preImg, ImgInfo curImg, in
 	Mat pImg(preImg.nH, preImg.nW, nTypes, preImg.pData, preImg.nStep);
 	Mat cImg(curImg.nH, curImg.nW, nTypes, curImg.pData, curImg.nStep);
 
-	Mat diff;
-	absdiff(pImg, cImg, diff);
+	(*nCount) = CMarkerFinder::IsMoving(pImg, cImg, nThre);
 
-	Mat gray;
-	if (diff.channels() == 3)
-		cvtColor(diff, gray, CV_BGR2GRAY);
-	else
-		gray = diff;
+	return true;
+}
 
-	Mat  b;  //二值图;固定阈值;
-	//粗调:nThre设为50，精调，nThre设为25比较合适;
-	threshold(gray, b, nThre, 255, THRESH_BINARY);
-	(*nCount) = countNonZero(b);
+extern "C" _declspec(dllexport) bool IsMoving_Finetune(ImgInfo preImg, ImgInfo curImg, LocRect r1, LocRect r2, int nThre, int * nCount)
+{
+	if (preImg.nChannels != curImg.nChannels)
+		return false;
+
+	int nTypes = CV_8UC3;
+	if (preImg.nChannels == 1)
+		nTypes = CV_8UC1;
+	Mat pImg(preImg.nH, preImg.nW, nTypes, preImg.pData, preImg.nStep);
+	Mat cImg(curImg.nH, curImg.nW, nTypes, curImg.pData, curImg.nStep);
+
+	//r1的比对;
+	Rect rect1,rect2;
+	rect1.x = r1.x;
+	rect1.y = r1.y;
+	rect1.width = r1.w;
+	rect1.height = r1.h;
+
+	Mat pImg1 = pImg(rect1);
+	Mat cImg1 = cImg(rect1);
+
+	int n1,n2;
+	n1 = CMarkerFinder::IsMoving(pImg1, cImg1, nThre);
+
+	//r2的比对;
+	rect2.x = r2.x;
+	rect2.y = r2.y;
+	rect2.width = r2.w;
+	rect2.height = r2.h;
+	Mat pImg2 = pImg(rect2);
+	Mat cImg2 = cImg(rect2);
+	n2 = CMarkerFinder::IsMoving(pImg2, cImg2, nThre);
+
+	(*nCount) = (n1 > n2) ? n1 : n2;
 
 	return true;
 }

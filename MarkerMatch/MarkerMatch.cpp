@@ -190,18 +190,46 @@ void test_getbimg(Mat srcImg) {
 }
 
 void test_Diff() {
-	string strImg2 = "d:\\cur.jpg";
-	string strImg1 = "d:\\pre.jpg";
+	string strImg2 = "d:\\IsMoving\\20190828165740494.jpg";  
+	string strImg1 = "d:\\IsMoving\\20190828165734575.jpg";
+
+	Rect r;
+	r.x = 1500;//2720;//1500;
+	r.y = 2300;//1410;//2300;
+	r.width = 300;
+	r.height = 300;
 
 	Mat m1, m2;
 	m1 = imread(strImg1);
 	m2 = imread(strImg2);
+	m1 = m1(r);
+	m2 = m2(r);
 
-	int nCount = CMarkerFinder::IsMoving(m1, m2);
+	int nCount;
+	nCount = CMarkerFinder::IsMoving(m1, m2, 25);
 	cout << "nCount=" << nCount << endl;
 
-	int d;
-	cin >> d;
+	Mat diff;
+	absdiff(m1, m2, diff);
+
+	Mat gray;
+	if (diff.channels() == 3)
+		cvtColor(diff, gray, CV_BGR2GRAY);
+	else
+		gray = diff;
+
+	int nCountNonZero = countNonZero(gray);
+	float dRatio = nCountNonZero * 1.0 / (gray.rows * gray.cols);
+	cout << "NonZero-Ratio=" << dRatio << endl;
+
+	double MaxValue, MinValue;
+	cv::minMaxLoc(gray, &MinValue, &MaxValue);
+	cout << "max of diff:" << MaxValue << endl;
+
+	namedWindow("src");
+	imshow("src", m1);
+
+	waitKey(0);
 }
 
 void test_black()  {
@@ -235,11 +263,16 @@ int main()
 {
 	clock_t s, e;
 	s = clock();
+
+	Mat src = imread("e:\\hs.jpg");
+	//test_getbimg(src);
 	//test_black();
-	testTemMatch();
+	//testTemMatch();
 	//testDirection();
 	//startTrain();
 	//startTest(srcImg);
+	test_Diff();
+
 	e = clock();
 	double dTime = (double)(e - s) / CLOCKS_PER_SEC * 1000;
 	cout << "ºÄÊ±:" << dTime << "ms" << endl;

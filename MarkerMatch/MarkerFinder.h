@@ -68,7 +68,7 @@ public:
 	virtual ~CMarkerFinder();
 
 	//一些其它用到的函数;
-	static int IsMoving(Mat preImg, Mat curImg);
+	static int IsMoving(Mat preImg, Mat curImg,int nThre);
 	static bool DetAlignment(Mat srcImage, int &nThre, vector<Vec<int, 5>> & vecFound);
 	static void GenerateBImg(Mat srcImg, Mat & bImg, GRADTYPE gt = GT_BOTH);
 
@@ -106,6 +106,7 @@ private:
 	Rect FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre);
 	bool FT_FindBoundary(Mat data, int & s, int & e);
 	bool FT_FindBlackMargin(Mat srcImg, Rect &r);
+	bool FT_RefineHollyCross(Mat grayImg, Rect &rectH);
 
 private:
 	HOGDescriptor m_hcHog;  //for hollowcross detector;

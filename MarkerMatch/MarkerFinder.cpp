@@ -353,8 +353,8 @@ bool CMarkerFinder::Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPatter
 	return true;
 }
 
-//判断相机是否移动;nNum为判断出的移动的像素个数;
-int CMarkerFinder::IsMoving(Mat preImg, Mat curImg) {
+//判断相机是否移动;返回值为判断出的移动的像素个数;
+int CMarkerFinder::IsMoving(Mat preImg, Mat curImg,int nThre) {
 	Mat diff;
 	absdiff(preImg, curImg, diff);
 
@@ -365,7 +365,7 @@ int CMarkerFinder::IsMoving(Mat preImg, Mat curImg) {
 		gray = diff;
 
 	Mat  b;  //二值图;固定阈值;
-	threshold(gray, b, 25, 255, THRESH_BINARY);  //粗调50和细调25，采用不同的参数;
+	threshold(gray, b, nThre, 255, THRESH_BINARY);  //粗调50和细调25，采用不同的参数;
 	int nNonZero = countNonZero(b);
 
 	return nNonZero;
@@ -1064,19 +1064,9 @@ Rect CMarkerFinder::FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre) {
 		if (dthre < dFloor)
 			break;
 	}
-	/*
-	Mat beforeB = bImg;
-	namedWindow("before_bimg", 0);
-	resizeWindow("before_bimg", 684, 456);
-	imshow("before_bimg", beforeB);
-	*/
 
 	//实心十字检测;
 	Mat resImg;
-	/*Mat tempSc;
-	Rect r1(2, 2, m_scMarker.cols - 4, m_scMarker.rows - 4);
-	tempSc = m_scMarker(r1);
-	*/
 	matchTemplate(bImg, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
 	double minValue, maxValue;
@@ -1089,6 +1079,13 @@ Rect CMarkerFinder::FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre) {
 	r_sc.width = m_scMarker.cols;
 	r_sc.height = m_scMarker.rows;
 
+	Mat beforeB = bImg;
+	rectangle(beforeB, r_sc, Scalar(0, 0, 0));
+	/*
+	namedWindow("before_bimg", 0);
+	resizeWindow("before_bimg", 684, 456);
+	imshow("before_bimg", beforeB);
+	*/
 	return r_sc;
 }
 
@@ -1243,6 +1240,72 @@ bool CMarkerFinder::FT_FindBlackMargin(Mat srcImg,Rect &r) {
 	return true;
 }
 
+//重新调整虚框的位置;通过计算相应四条边的灰度值总和，以最小值作为最终的选择;
+bool CMarkerFinder::FT_RefineHollyCross(Mat grayImg, Rect &rectH) {
+	int nPosMargin = 6;  //扩展范围;
+	int nNegMargin = -6;
+	
+	//实际大小与模板大小稍有差异;
+	rectH.width -= 5;
+	rectH.height -= 5;
+
+	//只计算最中间的1/3长度边;
+	int nSubColStart = 0.33 * rectH.width;
+	int nSubColEnd = 0.66 * rectH.width;
+	int nSubRowStart = 0.33 * rectH.height;
+	int nSubRowEnd = 0.66 * rectH.height;
+
+	int nTotal = 1000000;
+	int nDeltaX = 0;
+	int nDeltaY = 0;
+	for (int nRow = nNegMargin; nRow <= nPosMargin; nRow++)
+	for (int nCol = nNegMargin; nCol <= nPosMargin; nCol++)
+	{
+		//边界合理性判断;
+		int l = rectH.x + nCol;
+		int t = rectH.y + nRow;
+		int r = l + rectH.width - 1;
+		int b = t + rectH.height - 1;
+		if (l<0 || t<0 || r>=grayImg.rows || b>=grayImg.cols)
+			continue;
+
+		//上下边界;
+		int nSumTop = 0;
+		int nSumBot = 0;
+		for (int subCol = l + nSubColStart; subCol <= l + nSubColEnd; subCol++)
+		{
+			//top
+			nSumTop += grayImg.at<uchar>(t, subCol);
+			//bottom;
+			nSumBot += grayImg.at<uchar>(b, subCol);
+		}
+		//左右边界;
+		int nSumLeft = 0;
+		int nSumRight = 0;
+		for (int subRow = t + nSubRowStart; subRow <= t + nSubRowEnd; subRow++) {
+			nSumLeft += grayImg.at<uchar>(subRow, l);
+			nSumRight += grayImg.at<uchar>(subRow, r);
+		}
+
+		//查找四条边的梯度之和最高的;
+		int nTemp = nSumLeft + nSumRight + nSumTop + nSumBot;
+		if (nTotal > nTemp) {
+			nTotal = nTemp;
+			nDeltaX = nCol;
+			nDeltaY = nRow;
+		}
+	}
+
+	rectH.x += nDeltaX;
+	rectH.y += nDeltaY;
+
+	//未做任何改变;
+	if (nDeltaX == 0 && nDeltaY == 0)
+		return false;
+	else
+		return true;
+}
+
 bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS) {
 
 	Mat b;
@@ -1263,6 +1326,10 @@ bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS)
 	//查找虚心实心十字坐标;
 	rectS = FT_LocSolidCross(gImg, b, dthre);
 	rectH = FT_LocHollyCross(gImg, b, dthre);
+
+	//调整虚心十字框的坐标;
+	FT_RefineHollyCross(gImg, rectH);
+
 	rectS.x = rectS.x + newRect.x;
 	rectS.y = rectS.y + newRect.y;
 	rectH.x = rectH.x + newRect.x;

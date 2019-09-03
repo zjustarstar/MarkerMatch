@@ -83,6 +83,11 @@ extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross,
 //返回：成功返回true,失败返回false;
 extern "C" _declspec(dllexport) bool IsMoving(ImgInfo preImg, ImgInfo curImg, int nThre, int * nCount);
 
+//微调下判断是否移动;
+//其中，r1和r2表示两个虚十字框所在的ROI位置。这个位置可以很不精准，没关系。
+extern "C" _declspec(dllexport) bool IsMoving_Finetune(ImgInfo preImg, ImgInfo curImg, LocRect r1, LocRect r2, int nThre, int * nCount);
+
+
 //判断是否是黑图
 //输出：nMean表示全图的平均值,nMax表示全图的最大值:可以通过这两个值判断是否为黑图;
 //返回：成功返回true,失败返回false;

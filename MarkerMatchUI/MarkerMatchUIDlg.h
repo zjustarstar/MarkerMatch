@@ -51,6 +51,7 @@ private:
 	void FindMarker_General_Temp(Mat srcImg);     //直接全图使用模板匹配;
 	void FindMarker_General_HogTemp(Mat srcImg);  //先hog定位,再模板匹配;
 	void SaveResults(Mat srcImg, vector<LocMarker> vecResult);
+	bool AdjustRect(Rect & rH, Rect &rS);  //根据虚框和实框调整大小;
 
 public:
 	CMarkerFinder  m_mf;
