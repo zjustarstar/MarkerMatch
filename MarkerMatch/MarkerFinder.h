@@ -97,6 +97,7 @@ public:
 	//通用版的十字检测;
 	bool LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHollowCross, vector<LocMarker> & vecFound);
 
+	bool FT_RefineSolidCross(Mat grayImg, Rect &rectS);
 private:
 	static void   FindTextCord(Mat bImg, LocTexParam struLTParam, vector<Rect> & vecRect);
 	//验证定位;
@@ -104,8 +105,11 @@ private:
 	//精调阶段的定位;
 	Rect FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre);
 	Rect FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre);
+	bool FT_AdjustRect(Rect & rH, Rect &rS);
+
 	bool FT_FindBoundary(Mat data, int & s, int & e);
 	bool FT_FindBlackMargin(Mat srcImg, Rect &r);
+
 	bool FT_RefineHollyCross(Mat grayImg, Rect &rectH);
 
 private:

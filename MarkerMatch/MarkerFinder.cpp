@@ -1246,8 +1246,8 @@ bool CMarkerFinder::FT_RefineHollyCross(Mat grayImg, Rect &rectH) {
 	int nNegMargin = -6;
 	
 	//实际大小与模板大小稍有差异;
-	rectH.width -= 5;
-	rectH.height -= 5;
+	rectH.width -= 6;
+	rectH.height -= 6;
 
 	//只计算最中间的1/3长度边;
 	int nSubColStart = 0.33 * rectH.width;
@@ -1287,7 +1287,7 @@ bool CMarkerFinder::FT_RefineHollyCross(Mat grayImg, Rect &rectH) {
 			nSumRight += grayImg.at<uchar>(subRow, r);
 		}
 
-		//查找四条边的梯度之和最高的;
+		//查找四条边的亮度之和最低的;
 		int nTemp = nSumLeft + nSumRight + nSumTop + nSumBot;
 		if (nTotal > nTemp) {
 			nTotal = nTemp;
@@ -1304,6 +1304,150 @@ bool CMarkerFinder::FT_RefineHollyCross(Mat grayImg, Rect &rectH) {
 		return false;
 	else
 		return true;
+}
+
+bool CMarkerFinder::FT_RefineSolidCross(Mat grayImg, Rect &rectS) {
+	int nExtMargin = 5;  //扩展范围;
+	int nShrinkMargin = 0;  //范围稍微往里面收缩一点;
+
+	int nSolidCrossSize = 24;
+	int nRow, nCol;
+
+	Mat srcImg;
+	if (grayImg.channels() == 3)
+		cvtColor(grayImg, srcImg, CV_BGR2GRAY);
+	else
+		srcImg = grayImg;
+
+	//存储每行/列的一二阶梯度和;
+	Mat xGradImg, yGradImg;
+	xGradImg = Mat::zeros(srcImg.size(), CV_16SC1);
+	yGradImg = Mat::zeros(srcImg.size(), CV_16SC1);
+	for (int rr = 2; rr < srcImg.rows - 2; rr++)
+	for (int cc = 2; cc < srcImg.cols - 2;cc++)
+	{
+		xGradImg.at<short int>(rr, cc) = abs(srcImg.at<uchar>(rr, cc - 1) - srcImg.at<uchar>(rr, cc + 1));
+		xGradImg.at<short int>(rr, cc) += abs(srcImg.at<uchar>(rr, cc - 2) - srcImg.at<uchar>(rr, cc + 2));
+
+		yGradImg.at<short int>(rr, cc) = abs(srcImg.at<uchar>(rr - 1, cc) - srcImg.at<uchar>(rr + 1, cc));
+		yGradImg.at<short int>(rr, cc) += abs(srcImg.at<uchar>(rr - 2, cc) - srcImg.at<uchar>(rr + 2, cc));
+	}
+
+	int nCenterX = rectS.x + rectS.width / 2;
+	int nCenterY = rectS.y + rectS.height / 2;
+
+	//水平方向的边界侦测
+	int l = rectS.x+nShrinkMargin;
+	int r = rectS.x + rectS.width - 1 - nShrinkMargin;
+	int t = nCenterY - nSolidCrossSize / 2 - nExtMargin;
+	int b = nCenterY + nSolidCrossSize / 2 + nExtMargin;
+
+	int nTotal = 0;
+	int nLineY;
+	for (nRow = t; nRow < b-nSolidCrossSize; nRow++)
+	{
+		int nSumUpEdge = 0;
+		int nSumDownEdge = 0;
+		for (nCol = l; nCol < r; nCol++)
+		{
+			nSumUpEdge += yGradImg.at<short int>(nRow, nCol);
+			nSumDownEdge += yGradImg.at<short int>(nRow+nSolidCrossSize,nCol);
+		}
+
+		int nTemp = nSumDownEdge + nSumUpEdge;
+		if (nTotal < nTemp) {
+			nTotal = nTemp;
+			nLineY = nRow;
+		}
+	}
+
+	//垂直方向的边界侦测
+	l = nCenterX - nSolidCrossSize / 2 - nExtMargin;
+	r = nCenterX + nSolidCrossSize / 2 + nExtMargin;
+	t = rectS.y+nShrinkMargin;
+	b = rectS.y + rectS.height - 1 - nShrinkMargin;
+
+	nTotal = 0;
+	int nLineX;
+	for (nCol = l; nCol < r - nSolidCrossSize; nCol++)
+	{
+		int nSumLeftEdge = 0;
+		int nSumRightEdge = 0;
+		for (nRow = t; nRow < b; nRow++)
+		{
+			nSumLeftEdge += xGradImg.at<short int>(nRow, nCol);
+			nSumRightEdge += xGradImg.at<short int>(nRow, nCol + nSolidCrossSize);
+		}
+
+		int nTemp = nSumLeftEdge + nSumRightEdge;
+		if (nTotal < nTemp) {
+			nTotal = nTemp;
+			nLineX = nCol;
+		}
+	}
+	
+	/*
+	Rect rect(l, t, r - l + 1, b - t + 1);
+	rectangle(grayImg, rect, Scalar(255, 255, 255));
+	line(grayImg, Point(0, nLineY), Point(grayImg.cols - 1, nLineY), Scalar(255, 255, 255));
+	line(grayImg, Point(0, nLineY + nSolidCrossSize), Point(grayImg.cols - 1, nLineY + nSolidCrossSize), Scalar(255, 255, 255));
+	line(grayImg, Point(nLineX, 0), Point(nLineX,grayImg.rows - 1), Scalar(255, 255, 255));
+	line(grayImg, Point(nLineX + nSolidCrossSize,0), Point(nLineX+nSolidCrossSize,grayImg.rows - 1), Scalar(255, 255, 255));
+
+	namedWindow("line", 0);
+	resizeWindow("line", 500, 500);
+	imshow("line", grayImg);
+	*/
+
+	rectS.x = nLineX;
+	rectS.width = nSolidCrossSize;
+	rectS.y = nLineY;
+	rectS.height = nSolidCrossSize;
+
+	return true;
+}
+
+//根据十字框微调实心十字rect位置。实心十字如果离虚心十字太近了，则往相反方向稍微移动一点.
+//两者靠的太近时,二值化容易黏在一起,导致匹配时产生偏差.往反方向移动可以抵消这种偏差。
+bool CMarkerFinder::FT_AdjustRect(Rect & rH, Rect &rS) {
+	int DIST = 4;  //距离阈值;
+	int MOVE = 3;  //移动值
+	bool bAdjust = false;
+
+	//左边
+	if (abs(rS.x - rH.x) <= DIST)
+	{
+		rS.x += MOVE;
+		bAdjust = true;
+	}
+	//右边
+	else {
+		int rightS = rS.x + rS.width;
+		int rightH = rH.x + rH.width;
+		if (abs(rightH - rightS) <= DIST)
+		{
+			rS.x -= MOVE;
+			bAdjust = true;
+		}
+	}
+
+	//上边;
+	if (abs(rS.y - rH.y) <= DIST)
+	{
+		rS.y += MOVE;
+		bAdjust = true;
+	}
+	else {
+		int bottomS = rS.y + rS.height;
+		int bottomH = rH.y + rH.height;
+		if (abs(bottomH - bottomS) <= DIST)
+		{
+			rS.y -= MOVE;
+			bAdjust = true;
+		}
+	}
+
+	return bAdjust;
 }
 
 bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS) {
@@ -1329,11 +1473,15 @@ bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS)
 
 	//调整虚心十字框的坐标;
 	FT_RefineHollyCross(gImg, rectH);
+	//FT_RefineSolidCross(gImg, rectS);
 
 	rectS.x = rectS.x + newRect.x;
 	rectS.y = rectS.y + newRect.y;
 	rectH.x = rectH.x + newRect.x;
 	rectH.y = rectH.y + newRect.y;
+
+	//调整实心十字框;实心十字贴的虚心十字太近时，容易产生偏差;
+	FT_AdjustRect(rectH, rectS);
 
 	rectangle(b, rectS, Scalar(0, 0, 0), 1);
 	rectangle(b, rectH, Scalar(0, 0, 0), 1);

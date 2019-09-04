@@ -38,6 +38,7 @@ void CMarkerMatchUIDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_CHECK_SAVERESULT, m_chkSaveResult);
 	DDX_Control(pDX, IDC_CHECK_GEN_MAKERDETECTOR, m_chkGenMarkerDet);
 	DDX_Text(pDX, IDC_EDIT_DISTTOTEXT, m_nDistToText);
+	DDX_Control(pDX, IDC_STATIC_CROSS_LOCATION, m_sttLocInfo);
 }
 
 BEGIN_MESSAGE_MAP(CMarkerMatchUIDlg, CDialogEx)
@@ -219,7 +220,7 @@ void CMarkerMatchUIDlg::ListAllFiles(CString strFilePath)
 //根据十字框微调实心十字rect位置。实心十字如果离虚心十字太近了，则往相反方向稍微移动一点.
 //两者靠的太近时,二值化容易黏在一起,导致匹配时产生偏差.往反方向移动可以抵消这种偏差。
 bool CMarkerMatchUIDlg::AdjustRect(Rect & rH, Rect &rS) {
-	int DIST = 6;  //距离阈值;
+	int DIST = 4;  //距离阈值;
 	int MOVE = 3;  //移动值
 	bool bAdjust = false;
 
@@ -288,8 +289,6 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		m_mf.FinalFinetune(srcImg, b,rH,rS);
 		rectangle(srcImg, rS, Scalar(0, 0, 255), 1);
 
-		bool bAjust = AdjustRect(rH, rS);
-
 		CString strMsg;
 		e = clock();
 		double dTime = (double)(e - s) / CLOCKS_PER_SEC * 1000;
@@ -304,13 +303,31 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		Point p_hc;     //虚心十字中心点
 		p_hc.x = rH.x + rH.width / 2;
 		p_hc.y = rH.y + rH.height / 2;
-		
+
+		int nDeltaX, nDeltaY;
+		nDeltaX = p_sc.x - p_hc.x;
+		nDeltaY = p_sc.y - p_hc.y;
+		strMsg.Format("定位结果：deltaX=%d, deltaY=%d", nDeltaX, nDeltaY);
+		m_sttLocInfo.SetWindowTextA(strMsg);
+
+		if (abs(nDeltaX) <= 5 && abs(nDeltaY) <= 5) {
+			m_mf.FT_RefineSolidCross(srcImg, rS);
+			p_sc.x = rS.x + rS.width / 2;
+			p_sc.y = rS.y + rS.height / 2;
+
+			nDeltaX = p_sc.x - p_hc.x;
+			nDeltaY = p_sc.y - p_hc.y;
+			CString strTemp;
+			strTemp.Format("\n  新结果：deltaX=%d, deltaY=%d",nDeltaX, nDeltaY);
+			m_sttLocInfo.SetWindowTextA(strMsg + strTemp);
+
+			rectangle(srcImg, rS, Scalar(0, 255, 255), 1);
+		}
+	
 		circle(srcImg, p_hc, 2, Scalar(255, 0, 0), 1);
 		circle(srcImg, p_sc, 2, Scalar(0, 0, 255), 1);
 
 		rectangle(srcImg, rH, Scalar(255, 0, 0), 1);
-		if (bAjust)
-			rectangle(srcImg, rS, Scalar(0, 255, 255), 1);
 
 		namedWindow("bimg", 0);
 		resizeWindow("bimg", 500, 500);

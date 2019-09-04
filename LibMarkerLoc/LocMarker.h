@@ -114,3 +114,14 @@ extern "C" _declspec(dllexport) int FindAlignment(ImgInfo img, int nThre, int * 
  返回: 返回值为0，表示正常；返回值非零，表示有错误;
 */
 extern "C" _declspec(dllexport) int FineTune(ImgInfo img, LocRect roiRect, LocRect * pHRect, LocRect * pSRect);
+
+/*
+功能：精调阶段2，当实心和空心非常靠近时，需要调用该函数，检测实心更加准确的位置;
+输入输出参数的LocRect结构体中的fConf参数，在本函数中没用，无需理会;
+输入：img表示图像,
+roiRect表示Region of Interest,指大致的空心十字在原图中的位置
+输入：pSRect 为检测到的实心框位置;
+输出: pSRect 为修改后的实心框位置;
+返回: 返回值 无
+*/
+extern "C" _declspec(dllexport) void FineTune_RefineSRect(ImgInfo img, LocRect roiRect, LocRect * pSRect);

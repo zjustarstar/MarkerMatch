@@ -280,3 +280,36 @@ extern "C" _declspec(dllexport) int FineTune(ImgInfo img, LocRect roiRect, LocRe
 
 	return 0;
 }
+
+extern "C" _declspec(dllexport) void FineTune_RefineSRect(ImgInfo img, LocRect roiRect, LocRect * pSRect) {
+
+	int nTypes = CV_8UC3;
+	if (img.nChannels == 1)
+		nTypes = CV_8UC1;
+
+	Mat srcImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
+	int nImgW = srcImg.cols;
+	int nImgH = srcImg.rows;
+
+	Rect r;
+	r.x = roiRect.x;
+	r.y = roiRect.y;
+	r.width = roiRect.w;
+	r.height = roiRect.h;
+	Mat roiImg = srcImg(r);
+
+	//原来的SolidCross值;
+	Rect oriSRect;
+	oriSRect.x = pSRect->x;
+	oriSRect.y = pSRect->y;
+	oriSRect.width = pSRect->w;
+	oriSRect.height = pSRect->h;
+
+	Rect rS;
+	g_mf.FT_RefineSolidCross(roiImg, oriSRect);
+	pSRect->x = oriSRect.x;
+	pSRect->y = oriSRect.y;
+	pSRect->w = oriSRect.width;
+	pSRect->h = oriSRect.height;
+
+}

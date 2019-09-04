@@ -69,4 +69,5 @@ public:
 	afx_msg void OnBnClickedCheckSaveresult();
 	afx_msg void OnBnClickedButtonBatch();
 	afx_msg void OnBnClickedRadioFinetune();
+	CStatic m_sttLocInfo;
 };
