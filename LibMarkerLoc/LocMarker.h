@@ -38,7 +38,10 @@ typedef struct AlgorithParams {
 
 	//finetune函数相关参数;
 	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
-	/*
+
+	int refine_nScThickSize;        //精调refine时的实心十字bar厚度大小;
+	int refine_nHcThickSize;        //精调refine时空心十字的厚度大小;
+	
 	//默认参数;
 	AlgorithParams() {
 		locpattern_bCheckLastNum = false; //默认不进行再次验证;
@@ -46,8 +49,11 @@ typedef struct AlgorithParams {
 		locpattern_fRatio = 0.8;         
 
 		finetune_nHcMargin = 0;
+
+		refine_nHcThickSize = 6;     //空心十字的厚度;
+		refine_nScThickSize = 24;    //实心十字的bar厚度;
 	}
-	*/
+	
 };
 
 /*检测器初始化

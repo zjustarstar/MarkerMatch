@@ -59,6 +59,8 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg,
 	ap.locpattern_bVerticalNum = param.locpattern_bVerticalNum;
 	ap.locpattern_fRatio  = param.locpattern_fRatio;
 	ap.finetune_nHcMargin = param.finetune_nHcMargin;
+	ap.refine_nHcThickSize = param.refine_nHcThickSize;
+	ap.refine_nScThickSize = param.refine_nScThickSize;
 
 	if (!g_mf.Init(_hcImg, _scImg, hpImg, spImg,ap))
 		return ERROR_FAIL_LOADPARM;
@@ -111,7 +113,7 @@ extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross,
 	if (bHollowCross)
 		dHitThre = -0.7;  //暗场的参数
 	else
-		dHitThre = -0.5;  //明场的参数;
+		dHitThre = -0.7;  //明场的参数;
 
 	//首先检测到有十字的区域;
 	vector<LocMarker> vecMarkerArea;

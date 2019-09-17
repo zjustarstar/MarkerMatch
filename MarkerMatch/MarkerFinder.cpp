@@ -424,7 +424,6 @@ bool CMarkerFinder::LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHoll
 		
 		vecFound.push_back(lm);
 	}
-
 }
 
 //利用梯度生成2值图;
@@ -1245,9 +1244,9 @@ bool CMarkerFinder::FT_RefineHollyCross(Mat grayImg, Rect &rectH) {
 	int nPosMargin = 6;  //扩展范围;
 	int nNegMargin = -6;
 	
-	//实际大小与模板大小稍有差异;
-	rectH.width -= 6;
-	rectH.height -= 6;
+	//实际大小与模板大小稍有差异,尽量定位在边框的中心线上,因此要减去边框宽度;
+	rectH.width  -= m_algParams.refine_nHcThickSize;
+	rectH.height -= m_algParams.refine_nHcThickSize;
 
 	//只计算最中间的1/3长度边;
 	int nSubColStart = 0.33 * rectH.width;
@@ -1266,25 +1265,25 @@ bool CMarkerFinder::FT_RefineHollyCross(Mat grayImg, Rect &rectH) {
 		int t = rectH.y + nRow;
 		int r = l + rectH.width - 1;
 		int b = t + rectH.height - 1;
-		if (l<0 || t<0 || r>=grayImg.rows || b>=grayImg.cols)
+		if (l-1<0 || t-1<0 || r+1>=grayImg.rows || b+1>=grayImg.cols)
 			continue;
 
-		//上下边界;
+		//上下边界;统计上下连续三条边的总和;
 		int nSumTop = 0;
 		int nSumBot = 0;
 		for (int subCol = l + nSubColStart; subCol <= l + nSubColEnd; subCol++)
 		{
 			//top
-			nSumTop += grayImg.at<uchar>(t, subCol);
+			nSumTop = nSumTop + grayImg.at<uchar>(t, subCol) + grayImg.at<uchar>(t-1, subCol) + grayImg.at<uchar>(t+1, subCol);
 			//bottom;
-			nSumBot += grayImg.at<uchar>(b, subCol);
+			nSumBot = nSumBot + grayImg.at<uchar>(b, subCol) + grayImg.at<uchar>(b - 1, subCol) + grayImg.at<uchar>(b + 1, subCol);
 		}
 		//左右边界;
 		int nSumLeft = 0;
 		int nSumRight = 0;
 		for (int subRow = t + nSubRowStart; subRow <= t + nSubRowEnd; subRow++) {
-			nSumLeft += grayImg.at<uchar>(subRow, l);
-			nSumRight += grayImg.at<uchar>(subRow, r);
+			nSumLeft = nSumLeft + grayImg.at<uchar>(subRow, l) + grayImg.at<uchar>(subRow, l + 1) + grayImg.at<uchar>(subRow, l - 1);
+			nSumRight = nSumRight + grayImg.at<uchar>(subRow, r)+grayImg.at<uchar>(subRow, r + 1) + grayImg.at<uchar>(subRow, r - 1);
 		}
 
 		//查找四条边的亮度之和最低的;
@@ -1310,7 +1309,7 @@ bool CMarkerFinder::FT_RefineSolidCross(Mat grayImg, Rect &rectS) {
 	int nExtMargin = 5;  //扩展范围;
 	int nShrinkMargin = 0;  //范围稍微往里面收缩一点;
 
-	int nSolidCrossSize = 24;
+	int nSolidCrossSize = m_algParams.refine_nScThickSize;
 	int nRow, nCol;
 
 	Mat srcImg;
@@ -1318,6 +1317,7 @@ bool CMarkerFinder::FT_RefineSolidCross(Mat grayImg, Rect &rectS) {
 		cvtColor(grayImg, srcImg, CV_BGR2GRAY);
 	else
 		srcImg = grayImg;
+
 
 	//存储每行/列的一二阶梯度和;
 	Mat xGradImg, yGradImg;
@@ -1473,7 +1473,6 @@ bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS)
 
 	//调整虚心十字框的坐标;
 	FT_RefineHollyCross(gImg, rectH);
-	//FT_RefineSolidCross(gImg, rectS);
 
 	rectS.x = rectS.x + newRect.x;
 	rectS.y = rectS.y + newRect.y;

@@ -179,7 +179,7 @@ void test_getbimg(Mat srcImg) {
 	Mat aGray,b;
 	cvtColor(srcImg, aGray, CV_BGR2GRAY);
 	double dthre = threshold(aGray, b, 0, 255, THRESH_OTSU);
-	//threshold(aGray, b, dthre + 10, 255, THRESH_BINARY);
+	threshold(aGray, b, dthre + 35, 255, THRESH_BINARY);
 
 	imwrite("d:\\binary.jpg", b);
 
@@ -232,31 +232,80 @@ void test_Diff() {
 	waitKey(0);
 }
 
-void test_black()  {
-	string strImg1 = "d:\\1.jpg";
+void AddArrow(Mat srcImg, int nDirrection) {
+	Scalar color;
+
+	int nW = srcImg.cols;
+	int nH = srcImg.rows;
+
+	int nRectW = 200;  //箭头矩形区域长度;
+	int nRectH = 30;   //箭头矩形区域高度;
+
+	int x, y;          //矩形区域左上角;
+	y = 0.7 * nH;
+
+	//从左到右
+	vector<Point> vecPt;
+	if (nDirrection == 1)
+	{
+		color = Scalar(0, 255, 0);
+		x = 0.2 * nW;
+
+		vecPt.push_back(Point(x, y));
+		vecPt.push_back(Point(x + nRectW, y));
+		vecPt.push_back(Point(x + nRectW + 30, y + nRectH / 2));
+		vecPt.push_back(Point(x + nRectW, y + nRectH));
+		vecPt.push_back(Point(x, y + nRectH));
+	}
+	//从右到左;
+	else
+	{
+		color = Scalar(0, 0, 255);
+		x = 0.8 * nW;
+
+		vecPt.push_back(Point(x, y));
+		vecPt.push_back(Point(x - nRectW, y));
+		vecPt.push_back(Point(x - nRectW - 30, y + nRectH / 2));
+		vecPt.push_back(Point(x - nRectW, y + nRectH));
+		vecPt.push_back(Point(x, y + nRectH));
+	}
+
+	//多边形区域;
+	vector<vector<Point>> PPoint;
+	PPoint.push_back(vecPt);
+	fillPoly(srcImg, PPoint, color, 1);
+
+	//画上下两条斜线-从左到右;
+	Point ptUp1, ptUp2, ptDn1, ptDn2;
+	if (nDirrection == 1) {
+		ptUp1 = Point(x + nRectW + 30, y + nRectH / 2);
+		ptUp2 = Point(x + nRectW - 30, y - nRectH / 2);
+		ptDn1 = Point(x + nRectW + 30, y + nRectH / 2);
+		ptDn2 = Point(x + nRectW - 30, y + nRectH + nRectH / 2);
+	}
+	else {
+		ptUp1 = Point(x - nRectW - 30, y + nRectH / 2);
+		ptUp2 = Point(x - nRectW + 30, y - nRectH / 2);
+		ptDn1 = Point(x - nRectW - 30, y + nRectH / 2);
+		ptDn2 = Point(x - nRectW + 30, y + nRectH + nRectH / 2);
+	}
+	line(srcImg, ptUp1, ptUp2, color, 5);
+	line(srcImg, ptDn1, ptDn2, color, 5);
+}
+
+void test_AddArrow()  {
+	string strImg1 = "D:\\data\\CrossZebra\\20170726\\15\\10.122.0.32\\Sindy_CrossZebra_00001_1_20170726_152450812_1_晋DA2342.jpg";
 
 	Mat m1;
 	m1 = imread(strImg1);
 
-		Mat grayImg;
-		if (m1.channels() == 1)
-			grayImg = m1;
-		else
-			cvtColor(m1, grayImg, CV_BGR2GRAY);
+	AddArrow(m1, 0);
+	
+	namedWindow("srcBimg", 0);
+	resizeWindow("srcBimg", 1000, 800);
+	imshow("srcBimg", m1);
 
-		//最大最小值;
-		double minVal, maxVal;
-		int    minIdx[2] = {}, maxIdx[2] = {};	// minnimum Index, maximum Index
-		minMaxIdx(grayImg, &minVal, &maxVal, minIdx, maxIdx);
-		cout << "max=" << maxVal << endl;
-
-		//均值;
-		Scalar tempVal = cv::mean(grayImg);
-		int matMean = (int)(tempVal.val[0]);
-		cout << "mean=" << matMean << endl;
-
-		int d;
-		cin >> d;
+	waitKey(0);
 }
 
 int main()
@@ -264,14 +313,14 @@ int main()
 	clock_t s, e;
 	s = clock();
 
-	Mat src = imread("e:\\hs.jpg");
-	//test_getbimg(src);
+	Mat src = imread("d:\\solid1.jpg");
+	test_getbimg(src);
 	//test_black();
 	//testTemMatch();
 	//testDirection();
 	//startTrain();
 	//startTest(srcImg);
-	test_Diff();
+	//test_AddArrow();
 
 	e = clock();
 	double dTime = (double)(e - s) / CLOCKS_PER_SEC * 1000;

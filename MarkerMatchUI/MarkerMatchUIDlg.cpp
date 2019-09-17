@@ -83,14 +83,16 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	UpdateData(FALSE);
 
 	//暗/明场template;
-	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\template\\temp_solidcross.jpg";
-	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\template\\temp_hollowcross.jpg";
+	string strTempImg_mask   = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_solidcross.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_hollowcross.jpg"; 
 	Mat tempImg_h, tempImg_s;
 	tempImg_h = imread(strTempImg_wafter);
 	tempImg_s = imread(strTempImg_mask);
 
 	AlgParam ap;
-	ap.finetune_nHcMargin = 4;
+	ap.finetune_nHcMargin = 0;
+	ap.refine_nScThickSize = 38;  //24;
+	ap.refine_nHcThickSize = 10;  //6
 	//设置检测用的cross marker;
 	if (!m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(),ap))
 		AfxMessageBox("fail to init");
@@ -286,6 +288,9 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		clock_t s, e;
 		s = clock();
 
+		namedWindow("sourceImage");
+		imshow("sourceImage", srcImg);
+
 		m_mf.FinalFinetune(srcImg, b,rH,rS);
 		rectangle(srcImg, rS, Scalar(0, 0, 255), 1);
 
@@ -307,7 +312,8 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		int nDeltaX, nDeltaY;
 		nDeltaX = p_sc.x - p_hc.x;
 		nDeltaY = p_sc.y - p_hc.y;
-		strMsg.Format("定位结果：deltaX=%d, deltaY=%d", nDeltaX, nDeltaY);
+		strMsg.Format("定位结果：x=%d, y=%d\n\t deltaX=%d, deltaY=%d", p_hc.x, p_hc.y, nDeltaX, nDeltaY);
+		//strMsg.Format("deltaX=%d, deltaY=%d", nDeltaX, nDeltaY);
 		m_sttLocInfo.SetWindowTextA(strMsg);
 
 		if (abs(nDeltaX) <= 5 && abs(nDeltaY) <= 5) {
@@ -318,7 +324,7 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 			nDeltaX = p_sc.x - p_hc.x;
 			nDeltaY = p_sc.y - p_hc.y;
 			CString strTemp;
-			strTemp.Format("\n  新结果：deltaX=%d, deltaY=%d",nDeltaX, nDeltaY);
+			strTemp.Format("\n 新结果：deltaX=%d, deltaY=%d",nDeltaX, nDeltaY);
 			m_sttLocInfo.SetWindowTextA(strMsg + strTemp);
 
 			rectangle(srcImg, rS, Scalar(0, 255, 255), 1);
@@ -328,16 +334,17 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		circle(srcImg, p_sc, 2, Scalar(0, 0, 255), 1);
 
 		rectangle(srcImg, rH, Scalar(255, 0, 0), 1);
-
+		/*
 		namedWindow("bimg", 0);
 		resizeWindow("bimg", 500, 500);
 		imshow("bimg", b);
+		*/
 
 		namedWindow("img", 0);
 		resizeWindow("img", 500, 500);
 		imshow("img", srcImg);
 
-		imwrite("d:\\finetune.jpg", srcImg);
+		//imwrite("d:\\finetune.jpg", srcImg);
 	}
 	//其它检测;
 	else
@@ -351,6 +358,7 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		namedWindow("img", 0);
 		resizeWindow("img", 684, 456);
 		imshow("img", srcImg);
+		//imwrite("d:\\result.jpg", srcImg);
 	}
 }
 
@@ -487,7 +495,7 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 	}
 	else if (m_nAlgMode == 1) {
 		bHollowCross = false;
-		dHitThre = 0;  //明场的参数; //原来-0.5
+		dHitThre = -0.7;  //明场的参数; //原来-0.5
 	}
 	else
 		return;
@@ -517,7 +525,7 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 		SaveResults(srcImg, vecResult);
 
 	//hog区域;
-	DrawTempLocResult(srcImg, Scalar(0, 255, 0), vecMarkerArea,false);
+	//DrawTempLocResult(srcImg, Scalar(0, 255, 0), vecMarkerArea,false);
 	//最终定位的marker区域，更细致;
 	DrawTempLocResult(srcImg, Scalar(0,0,255), vecResult);
 }

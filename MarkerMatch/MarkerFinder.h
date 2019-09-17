@@ -48,12 +48,19 @@ typedef struct AlgParam {
 	//finetune函数;
 	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
 
+	//用于精调refine位置时的参数;
+	int refine_nScThickSize;        //精调refine时的实心十字bar厚度大小;
+	int refine_nHcThickSize;        //精调refine时空心十字的厚度大小;
+
 	AlgParam() {
 		locpattern_bCheckLastNum = 0; //默认不进行再次验证;
 		locpattern_bVerticalNum = 1;   //默认竖直方向;
 		locpattern_fRatio = 0.8;
 
 		finetune_nHcMargin = 0;
+
+		refine_nHcThickSize = 6;     //空心十字的厚度;
+		refine_nScThickSize = 24;    //实心十字的bar厚度;
 	}
 
 };
