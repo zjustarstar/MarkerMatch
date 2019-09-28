@@ -35,6 +35,8 @@ typedef struct AlgorithParams {
 	int  locpattern_bCheckLastNum; //最后一个数字的再次验证;
 	int  locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
 	float locpattern_fRatio;       //最后一个数字的y坐标比率;
+	int   locpattern_nDelta;        //二值化时的补偿;用于左右片亮度差异大时。默认为0.
+	float locpattern_fMatchDegree;  //匹配阈值。默认0.5;
 
 	//finetune函数相关参数;
 	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
@@ -47,6 +49,8 @@ typedef struct AlgorithParams {
 		locpattern_bCheckLastNum = false; //默认不进行再次验证;
 		locpattern_bVerticalNum = true;   //默认竖直方向;
 		locpattern_fRatio = 0.8;         
+		locpattern_nDelta = 0;
+		locpattern_fMatchDegree = 0.5;
 
 		finetune_nHcMargin = 0;
 
@@ -131,3 +135,13 @@ roiRect表示Region of Interest,指大致的空心十字在原图中的位置
 返回: 返回值 无
 */
 extern "C" _declspec(dllexport) void FineTune_RefineSRect(ImgInfo img, LocRect roiRect, LocRect * pSRect);
+
+/*
+功能：用于根据输入的图像生成模板图，并保存在chFileName指定的文件中;
+输入输出参数的LocRect结构体中的fConf参数，在本函数中没用，无需理会;
+输入：img表示图像,
+      nDelta默认是0，可以是正值或者负值，可以改变生成的结果图
+输出: 生成的模板图保存在chFileName所代表的文件中（带路径）;
+返回: 返回值 无
+*/
+extern "C" _declspec(dllexport) void Util_GenerateTempFile(ImgInfo img, int nDelta, char * chFileName);

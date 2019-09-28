@@ -41,9 +41,11 @@ typedef struct LocMarker {
 
 typedef struct AlgParam {
 	//pattern定位函数;
-	int  locpattern_bCheckLastNum; //最后一个数字的再次验证;
-	int  locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
-	float locpattern_fRatio;       //最后一个数字的y坐标比率;
+	int   locpattern_bCheckLastNum; //最后一个数字的再次验证;
+	int   locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
+	float locpattern_fRatio;        //最后一个数字的y坐标比率;
+	int   locpattern_nDelta;        //二值化时的补偿;用于左右片亮度差异大时。默认为0.
+	float locpattern_fMatchDegree;  //匹配阈值。默认0.5;
 
 	//finetune函数;
 	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
@@ -56,6 +58,8 @@ typedef struct AlgParam {
 		locpattern_bCheckLastNum = 0; //默认不进行再次验证;
 		locpattern_bVerticalNum = 1;   //默认竖直方向;
 		locpattern_fRatio = 0.8;
+		locpattern_nDelta = 0;
+		locpattern_fMatchDegree = 0.5;
 
 		finetune_nHcMargin = 0;
 
@@ -70,14 +74,13 @@ class CMarkerFinder
 public:
 	AlgParam      m_algParams;
 
-	void Test();
 	CMarkerFinder();
 	virtual ~CMarkerFinder();
 
 	//一些其它用到的函数;
 	static int IsMoving(Mat preImg, Mat curImg,int nThre);
 	static bool DetAlignment(Mat srcImage, int &nThre, vector<Vec<int, 5>> & vecFound);
-	static void GenerateBImg(Mat srcImg, Mat & bImg, GRADTYPE gt = GT_BOTH);
+	static double GenerateBImg(Mat srcImg, Mat & bImg, GRADTYPE gt = GT_BOTH);
 
 	bool Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern, AlgParam param);
 	bool FinalFinetune(Mat srcImg, Mat &bImg, Rect &rectH, Rect &rectS);
@@ -105,6 +108,9 @@ public:
 	bool LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHollowCross, vector<LocMarker> & vecFound);
 
 	bool FT_RefineSolidCross(Mat grayImg, Rect &rectS);
+
+	//工具类;
+	void Util_GenTempImg(Mat srcImg, int nDelta, Mat &outImg);
 private:
 	static void   FindTextCord(Mat bImg, LocTexParam struLTParam, vector<Rect> & vecRect);
 	//验证定位;

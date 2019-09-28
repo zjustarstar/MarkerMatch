@@ -427,7 +427,7 @@ bool CMarkerFinder::LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHoll
 }
 
 //利用梯度生成2值图;
-void CMarkerFinder::GenerateBImg(Mat srcImg, Mat & bImg,GRADTYPE gt) {
+double CMarkerFinder::GenerateBImg(Mat srcImg, Mat & bImg,GRADTYPE gt) {
 
 	Mat gray;
 	if (srcImg.channels() == 3)
@@ -458,6 +458,8 @@ void CMarkerFinder::GenerateBImg(Mat srcImg, Mat & bImg,GRADTYPE gt) {
 
 	//二值化;
 	double d = threshold(input, bImg, 0, 255, THRESH_OTSU);
+
+	return d;
 }
 
 //查找暗场下的marker
@@ -591,8 +593,6 @@ bool CMarkerFinder::LocatePattern(Mat srcImg, bool bHcPattern,int nMaxCount, vec
 	if (patternImg.empty())
 		return false;
 
-	//imwrite("d:\\pattern.jpg", patternImg);
-
 	Mat resizedTempImg, resizedSrcImg;
 	int nScale = 4;
 	resize(srcImg, resizedSrcImg, cvSize(srcImg.cols / nScale, srcImg.rows / nScale));
@@ -600,7 +600,7 @@ bool CMarkerFinder::LocatePattern(Mat srcImg, bool bHcPattern,int nMaxCount, vec
 
 	//最多两个,匹配阈值0.5;
 	vector<LocMarker> vecRect;
-	LocateTemplate(resizedSrcImg, resizedTempImg, 0.5, nMaxCount, vecRect);
+	LocateTemplate(resizedSrcImg, resizedTempImg, m_algParams.locpattern_fMatchDegree, nMaxCount, vecRect);
 	for (int j = 0; j < vecRect.size(); j++)
 	{
 		vecRect[j].rect.x *= nScale;
@@ -678,6 +678,8 @@ bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, float fMatchThre, in
 	double dthre = threshold(srcGrayImg, srcBImg, 0, 255, THRESH_OTSU);
 	cout << "Threshold = " << dthre << endl;
 
+	if (m_algParams.locpattern_nDelta != 0)
+		threshold(srcGrayImg, srcBImg, dthre+m_algParams.locpattern_nDelta, 255, THRESH_BINARY);
 	matchTemplate(srcBImg, tempGrayImg, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
 	double minValue, maxValue;
@@ -1078,19 +1080,19 @@ Rect CMarkerFinder::FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre) {
 	r_sc.width = m_scMarker.cols;
 	r_sc.height = m_scMarker.rows;
 
+	//在二值图中显示找到的实心十字区域;
 	Mat beforeB = bImg;
-	rectangle(beforeB, r_sc, Scalar(0, 0, 0));
-	/*
-	namedWindow("before_bimg", 0);
-	resizeWindow("before_bimg", 684, 456);
-	imshow("before_bimg", beforeB);
+	//rectangle(beforeB, r_sc, Scalar(0, 0, 0));
+	/*namedWindow("before_bimg_S", 0);
+	resizeWindow("before_bimg_S", 500, 500);
+	imshow("before_bimg_S", beforeB);
 	*/
 	return r_sc;
 }
 
 Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
 	double dPhase1_RatioThre = 0.6;  
-	double dPhase2_RatioThre = 0.1;  //有些地方是0.05就可以;
+	double dPhase2_RatioThre = 0.1;  //有些地方是0.05就可以;0.1
 
 	int nSize = bImg.rows*bImg.cols;
 	float fRatio = countNonZero(bImg)*1.0 / nSize;
@@ -1123,10 +1125,10 @@ Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
 
 	/*
 	Mat beforeB = bImg;
-	rectangle(beforeB, r_sc, Scalar(0, 0, 0), 1);
-	namedWindow("before_bimg", 0);
-	resizeWindow("before_bimg", 684, 456);
-	imshow("before_bimg", beforeB);
+	//rectangle(beforeB, r_sc, Scalar(0, 0, 0), 1);
+	namedWindow("HC_phase1Img", 0);
+	resizeWindow("HC_phase1Img", 500, 500);
+	imshow("HC_phase1Img", beforeB);
 	*/
 
 	//虚心十字检测：
@@ -1155,6 +1157,12 @@ Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
 		if (dthre > 230)
 			break;
 	}
+	
+	/*
+	namedWindow("HC_phase2Img", 0);
+	resizeWindow("HC_phase2Img", 500, 500);
+	imshow("HC_phase2Img", bImg);
+	*/
 
 	matchTemplate(bImg, tempV, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
@@ -1468,8 +1476,9 @@ bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS)
 	double dthre = threshold(gImg, b, 0, 255, THRESH_OTSU);
 
 	//查找虚心实心十字坐标;
+	Mat b2 = b.clone();
 	rectS = FT_LocSolidCross(gImg, b, dthre);
-	rectH = FT_LocHollyCross(gImg, b, dthre);
+	rectH = FT_LocHollyCross(gImg, b2, dthre);
 
 	//调整虚心十字框的坐标;
 	FT_RefineHollyCross(gImg, rectH);
@@ -1482,15 +1491,23 @@ bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS)
 	//调整实心十字框;实心十字贴的虚心十字太近时，容易产生偏差;
 	FT_AdjustRect(rectH, rectS);
 
-	rectangle(b, rectS, Scalar(0, 0, 0), 1);
-	rectangle(b, rectH, Scalar(0, 0, 0), 1);
+	rectangle(b2, rectS, Scalar(0, 0, 0), 1);
+	rectangle(b2, rectH, Scalar(0, 0, 0), 1);
 	
-	bImg = b;
+	bImg = b2;
 
 	return true;
 }
 
-void CMarkerFinder::Test() {
-	imwrite("d:\\hollowcross.jpg", m_hcMarker);
-	imwrite("d:\\hcpattern.jpg", m_hcPattern);
+void CMarkerFinder::Util_GenTempImg(Mat srcImg, int nDelta,Mat &outImg) {
+	Mat Gray, b;
+	if (srcImg.channels() == 3)
+		cvtColor(srcImg, Gray, CV_BGR2GRAY);
+	else
+		Gray = srcImg;
+
+	double dthre = threshold(Gray, b, 0, 255, THRESH_OTSU);
+	threshold(Gray, b, dthre + nDelta, 255, THRESH_BINARY);
+
+	outImg = b;
 }

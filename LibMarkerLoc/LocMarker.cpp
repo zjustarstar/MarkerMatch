@@ -58,10 +58,13 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg,
 	ap.locpattern_bCheckLastNum = param.locpattern_bCheckLastNum;
 	ap.locpattern_bVerticalNum = param.locpattern_bVerticalNum;
 	ap.locpattern_fRatio  = param.locpattern_fRatio;
+	ap.locpattern_fMatchDegree = param.locpattern_fMatchDegree;
+	ap.locpattern_nDelta = param.locpattern_nDelta;
+
 	ap.finetune_nHcMargin = param.finetune_nHcMargin;
 	ap.refine_nHcThickSize = param.refine_nHcThickSize;
 	ap.refine_nScThickSize = param.refine_nScThickSize;
-
+	
 	if (!g_mf.Init(_hcImg, _scImg, hpImg, spImg,ap))
 		return ERROR_FAIL_LOADPARM;
 
@@ -313,5 +316,17 @@ extern "C" _declspec(dllexport) void FineTune_RefineSRect(ImgInfo img, LocRect r
 	pSRect->y = oriSRect.y;
 	pSRect->w = oriSRect.width;
 	pSRect->h = oriSRect.height;
+}
 
+extern "C" _declspec(dllexport) void Util_GenerateTempFile(ImgInfo img, int nDelta, char * chFileName) {
+	int nTypes = CV_8UC3;
+	if (img.nChannels == 1)
+		nTypes = CV_8UC1;
+
+	Mat srcImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
+
+	Mat out = srcImg;
+	g_mf.Util_GenTempImg(srcImg, nDelta, out);
+	string strFile(chFileName);
+	imwrite(chFileName, out);
 }

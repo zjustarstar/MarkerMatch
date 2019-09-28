@@ -24,6 +24,7 @@
 CMarkerMatchUIDlg::CMarkerMatchUIDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(IDD_MARKERMATCHUI_DIALOG, pParent)
 	, m_nDistToText(0)
+	, m_nGenTempImageDelta(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -38,6 +39,7 @@ void CMarkerMatchUIDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_CHECK_SAVERESULT, m_chkSaveResult);
 	DDX_Control(pDX, IDC_CHECK_GEN_MAKERDETECTOR, m_chkGenMarkerDet);
 	DDX_Text(pDX, IDC_EDIT_DISTTOTEXT, m_nDistToText);
+	DDX_Text(pDX, IDC_EDIT_DELTA, m_nGenTempImageDelta);
 	DDX_Control(pDX, IDC_STATIC_CROSS_LOCATION, m_sttLocInfo);
 }
 
@@ -52,6 +54,7 @@ BEGIN_MESSAGE_MAP(CMarkerMatchUIDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_CHECK_SAVERESULT, &CMarkerMatchUIDlg::OnBnClickedCheckSaveresult)
 	ON_BN_CLICKED(IDC_CHECK_GEN_MAKERDETECTOR, &CMarkerMatchUIDlg::OnBnClickedCheckGenMakerdetector)
 	ON_BN_CLICKED(IDC_RADIO_FINETUNE, &CMarkerMatchUIDlg::OnBnClickedRadioFinetune)
+	ON_BN_CLICKED(IDC_RADIO_GENTEMPIMAGE, &CMarkerMatchUIDlg::OnBnClickedRadioGentempimage)
 END_MESSAGE_MAP()
 
 
@@ -91,8 +94,8 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 
 	AlgParam ap;
 	ap.finetune_nHcMargin = 0;
-	ap.refine_nScThickSize = 38;  //24;
-	ap.refine_nHcThickSize = 10;  //6
+	ap.refine_nScThickSize = 34;//36;  //24;
+	ap.refine_nHcThickSize = 8;  //12; //6
 	//设置检测用的cross marker;
 	if (!m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(),ap))
 		AfxMessageBox("fail to init");
@@ -275,12 +278,26 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 
 	CString strFileName;
 	m_lbFiles.GetText(nCurIndex, strFileName);
+	m_strCurFileName = strFileName;
 	strFileName = m_strFilePath + "\\" + strFileName;
 
 	Mat srcImg = imread(strFileName.GetBuffer(0));
 
+	//模板匹配;
+	if (m_nAlgMode == 3)
+	{
+		Mat bImg = srcImg;
+		m_mf.Util_GenTempImg(srcImg, m_nGenTempImageDelta,bImg);
+
+		namedWindow("src");
+		imshow("src", srcImg);
+		namedWindow("b");
+		imshow("b", bImg);
+
+		waitKey(1);
+	}
 	//fine tune;
-	if (m_nAlgMode == 2)
+	else if (m_nAlgMode == 2)
 	{
 		Mat b;
 		Rect rH, rS;
@@ -334,11 +351,10 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		circle(srcImg, p_sc, 2, Scalar(0, 0, 255), 1);
 
 		rectangle(srcImg, rH, Scalar(255, 0, 0), 1);
-		/*
+		
 		namedWindow("bimg", 0);
 		resizeWindow("bimg", 500, 500);
 		imshow("bimg", b);
-		*/
 
 		namedWindow("img", 0);
 		resizeWindow("img", 500, 500);
@@ -360,6 +376,7 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		imshow("img", srcImg);
 		//imwrite("d:\\result.jpg", srcImg);
 	}
+
 }
 
 
@@ -573,7 +590,10 @@ void CMarkerMatchUIDlg::SaveResults(Mat srcImg, vector<LocMarker> vecResult) {
 			r.height = srcImg.rows - r.y - 1;
 
 		char chName[256];
-		sprintf_s(chName, "%d%d%d%d%d_%d.jpg", mon, d, h, m, ms, i);
+		//sprintf_s(chName, "%d%d%d%d%d_%d.jpg", mon, d, h, m, ms, i);
+		string strTemp(m_strCurFileName.GetBuffer(0));
+		strTemp = strTemp.substr(0, strTemp.length() - 4); //不要.jpg;
+		sprintf_s(chName, "%s_%d.jpg", strTemp.c_str(), i);
 
 		strFileName = strPath + string(chName);
 		imwrite(strFileName, srcImg(r));
@@ -596,11 +616,13 @@ void CMarkerMatchUIDlg::OnBnClickedButtonBatch() {
 
 		CString strFileName;
 		m_lbFiles.GetText(i, strFileName);
+		m_strCurFileName = strFileName;
 		strFileName = m_strFilePath + "\\" + strFileName;
 
 		Mat srcImg = imread(strFileName.GetBuffer(0));
 
-		if (m_nAlgMode == 2)
+		//生成模板文件的测试;
+		if (m_nAlgMode == 3)
 		{
 
 		}
@@ -620,4 +642,11 @@ void CMarkerMatchUIDlg::OnBnClickedRadioFinetune()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	m_nAlgMode = 2;
+}
+
+
+void CMarkerMatchUIDlg::OnBnClickedRadioGentempimage()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_nAlgMode = 3;
 }

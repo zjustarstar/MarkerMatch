@@ -57,6 +57,7 @@ public:
 	CMarkerFinder  m_mf;
 	CEdit m_editFilePath;
 	CListBox m_lbFiles;
+	CString  m_strCurFileName;  //当前文件名;
 	CStatic m_sttTotal;
 	afx_msg void OnSelchangeListImagefiles();
 	afx_msg void OnBnClickedRadioWafer();
@@ -70,4 +71,6 @@ public:
 	afx_msg void OnBnClickedButtonBatch();
 	afx_msg void OnBnClickedRadioFinetune();
 	CStatic m_sttLocInfo;
+	int m_nGenTempImageDelta;
+	afx_msg void OnBnClickedRadioGentempimage();
 };

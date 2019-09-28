@@ -132,8 +132,8 @@ void DrawLocResult(Mat srcImg, Scalar color, vector<LocMarker> vecResult, bool b
 }
 
 void testTemMatch() {
-	string strFile = "d:\\12.jpg";
-	string strTempFile = "d:\\hcpattern.bmp";
+	string strFile = "E:\\0PE测试\\P12106暗场图片\\1.jpg";
+	string strTempFile = "d:\\13.jpg";
 	//string strTempFile = "E:\\MyProject\\MarkerMatch\\template\\temp-2.jpg";
 	Mat srcImg2;
 	Mat srcImg = imread(strFile);
@@ -142,9 +142,10 @@ void testTemMatch() {
 
 	CMarkerFinder mf;
 	AlgParam ap;
-	ap.locpattern_bCheckLastNum = true;
+	ap.locpattern_bCheckLastNum = false;
 	ap.locpattern_bVerticalNum = true;
 	ap.locpattern_fRatio = 0.8;
+	ap.locpattern_nDelta = 20;
 	mf.Init(tempImg, tempImg, tempImg, tempImg,ap);
 	vector<LocMarker> vecRect;
 	mf.LocatePattern(srcImg, true, 2, vecRect);
@@ -232,91 +233,23 @@ void test_Diff() {
 	waitKey(0);
 }
 
-void AddArrow(Mat srcImg, int nDirrection) {
-	Scalar color;
-
-	int nW = srcImg.cols;
-	int nH = srcImg.rows;
-
-	int nRectW = 200;  //箭头矩形区域长度;
-	int nRectH = 30;   //箭头矩形区域高度;
-
-	int x, y;          //矩形区域左上角;
-	y = 0.7 * nH;
-
-	//从左到右
-	vector<Point> vecPt;
-	if (nDirrection == 1)
-	{
-		color = Scalar(0, 255, 0);
-		x = 0.2 * nW;
-
-		vecPt.push_back(Point(x, y));
-		vecPt.push_back(Point(x + nRectW, y));
-		vecPt.push_back(Point(x + nRectW + 30, y + nRectH / 2));
-		vecPt.push_back(Point(x + nRectW, y + nRectH));
-		vecPt.push_back(Point(x, y + nRectH));
-	}
-	//从右到左;
-	else
-	{
-		color = Scalar(0, 0, 255);
-		x = 0.8 * nW;
-
-		vecPt.push_back(Point(x, y));
-		vecPt.push_back(Point(x - nRectW, y));
-		vecPt.push_back(Point(x - nRectW - 30, y + nRectH / 2));
-		vecPt.push_back(Point(x - nRectW, y + nRectH));
-		vecPt.push_back(Point(x, y + nRectH));
-	}
-
-	//多边形区域;
-	vector<vector<Point>> PPoint;
-	PPoint.push_back(vecPt);
-	fillPoly(srcImg, PPoint, color, 1);
-
-	//画上下两条斜线-从左到右;
-	Point ptUp1, ptUp2, ptDn1, ptDn2;
-	if (nDirrection == 1) {
-		ptUp1 = Point(x + nRectW + 30, y + nRectH / 2);
-		ptUp2 = Point(x + nRectW - 30, y - nRectH / 2);
-		ptDn1 = Point(x + nRectW + 30, y + nRectH / 2);
-		ptDn2 = Point(x + nRectW - 30, y + nRectH + nRectH / 2);
-	}
-	else {
-		ptUp1 = Point(x - nRectW - 30, y + nRectH / 2);
-		ptUp2 = Point(x - nRectW + 30, y - nRectH / 2);
-		ptDn1 = Point(x - nRectW - 30, y + nRectH / 2);
-		ptDn2 = Point(x - nRectW + 30, y + nRectH + nRectH / 2);
-	}
-	line(srcImg, ptUp1, ptUp2, color, 5);
-	line(srcImg, ptDn1, ptDn2, color, 5);
-}
-
-void test_AddArrow()  {
-	string strImg1 = "D:\\data\\CrossZebra\\20170726\\15\\10.122.0.32\\Sindy_CrossZebra_00001_1_20170726_152450812_1_晋DA2342.jpg";
-
-	Mat m1;
-	m1 = imread(strImg1);
-
-	AddArrow(m1, 0);
-	
-	namedWindow("srcBimg", 0);
-	resizeWindow("srcBimg", 1000, 800);
-	imshow("srcBimg", m1);
-
-	waitKey(0);
-}
-
 int main()
 {
 	clock_t s, e;
 	s = clock();
+	/*
+	Mat src = imread("d:\\88.jpg");
+	Mat bimg;
+	CMarkerFinder::GenerateBImg(src, bimg);
+	imwrite("d:\\xs.jpg", src);
 
-	Mat src = imread("d:\\solid1.jpg");
-	test_getbimg(src);
+	namedWindow("bimg");
+	imshow("bimg", bimg);
+	namedWindow("src");
+	imshow("src", src);
+	*/
 	//test_black();
-	//testTemMatch();
+	testTemMatch();
 	//testDirection();
 	//startTrain();
 	//startTest(srcImg);
