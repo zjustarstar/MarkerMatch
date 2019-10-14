@@ -1,6 +1,8 @@
 #include "MarkerFinder.h"
 #include <fstream>
 #include <opencv2/imgproc/types_c.h>
+
+#define  SAVE_FINAL_BINARYIMG_LOCPATTERN 0   //保存在模板匹配函数中的最终二值化图,用于测试匹配函数;
 #define  ENABLE_TEST  0
 
 #define n48Size 901
@@ -337,7 +339,7 @@ bool CMarkerFinder::Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPatter
 	if (!m_scPattern.empty()) {
 		if (m_scPattern.channels() == 3)
 			cvtColor(m_scPattern, m_scPattern, CV_BGR2GRAY);
-		threshold(m_hcPattern, m_hcPattern, 0, 255, THRESH_OTSU);
+		threshold(m_scPattern, m_scPattern, 0, 255, THRESH_OTSU);
 	}
 
 	m_algParams = param;
@@ -584,11 +586,18 @@ bool CMarkerFinder::FindWafterMarkerArea(Mat srcImg, Mat bImg, LocWafterMarkerPa
 //定位明场/暗场下的pattern.为了加快速度,可以缩小数倍后再匹配;
 bool CMarkerFinder::LocatePattern(Mat srcImg, bool bHcPattern,int nMaxCount, vector<LocMarker> & vecFound)
 {
-	Mat patternImg;
+	Mat   patternImg;
+	float fMatchDegree;
 	if (bHcPattern)
+	{
 		patternImg = m_hcPattern;
+		fMatchDegree = m_algParams.locpattern_fHcMatchDegree;
+	}
 	else
+	{
 		patternImg = m_scPattern;
+		fMatchDegree = m_algParams.locpattern_fScMatchDegree;
+	}
 
 	if (patternImg.empty())
 		return false;
@@ -600,7 +609,28 @@ bool CMarkerFinder::LocatePattern(Mat srcImg, bool bHcPattern,int nMaxCount, vec
 
 	//最多两个,匹配阈值0.5;
 	vector<LocMarker> vecRect;
-	LocateTemplate(resizedSrcImg, resizedTempImg, m_algParams.locpattern_fMatchDegree, nMaxCount, vecRect);
+	LocateTemplate(resizedSrcImg, resizedTempImg, bHcPattern,fMatchDegree, nMaxCount, vecRect);
+
+	//暗场图左右两边差异实在太大，无法用delta补充时，采用二阶段定位.
+	//此时先检测到一组，然后把该组所在的区域从原图抹掉，再进行第二组检测;
+	if (m_algParams.locpattern_bTwoStageLoc && (vecRect.size() == 1))
+	{
+		//创建一个空区域;
+		Mat m = Mat::zeros(cvSize(vecRect[0].rect.width, resizedSrcImg.rows), resizedSrcImg.type());
+		Mat newSrcImg = resizedSrcImg.clone();
+
+		Rect r = vecRect[0].rect;
+		r.y = 0;
+		r.height = resizedSrcImg.rows;
+		m.copyTo(newSrcImg(r));   //抹掉检测到的所在区域;
+		vector<LocMarker> vecRect1;
+		//最多再检测1个;
+		LocateTemplate(newSrcImg, resizedTempImg, bHcPattern, fMatchDegree, 1, vecRect1);
+
+		if (vecRect1.size() != 0)
+			vecRect.push_back(vecRect1[0]);
+	}
+
 	for (int j = 0; j < vecRect.size(); j++)
 	{
 		vecRect[j].rect.x *= nScale;
@@ -656,9 +686,10 @@ bool CMarkerFinder::CheckLocTemp_ByLastNum(Mat srcImg, Mat tempImg, float fMatch
 
 //在图中查找模板图片;
 //srcImg & tempImg: 原图和模板图;
+//bHcPattern:表示是虚心或是实心模板;
 //nMaxCount: 图中最多可能存在的模板;
 //vecTempRect:返回值，表示找到的模板区域;
-bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, float fMatchThre, int nMaxCount, vector<LocMarker> & vecTempRect) {
+bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, bool bHcPattern, float fMatchThre, int nMaxCount, vector<LocMarker> & vecTempRect) {
 	
 	Mat srcGrayImg;
 	Mat tempGrayImg;
@@ -672,14 +703,27 @@ bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, float fMatchThre, in
 	else
 		tempGrayImg = tempImg;
 
+	int nDelta;
+	if (bHcPattern)
+		nDelta = m_algParams.locpattern_nHcDelta;
+	else
+		nDelta = m_algParams.locpattern_nScDelta;
+
 	//对二值化图像进行匹配;
 	Mat srcBImg;
 	Mat resImg;
 	double dthre = threshold(srcGrayImg, srcBImg, 0, 255, THRESH_OTSU);
 	cout << "Threshold = " << dthre << endl;
 
-	if (m_algParams.locpattern_nDelta != 0)
-		threshold(srcGrayImg, srcBImg, dthre+m_algParams.locpattern_nDelta, 255, THRESH_BINARY);
+	if (nDelta != 0)
+		threshold(srcGrayImg, srcBImg, dthre+nDelta, 255, THRESH_BINARY);
+
+	if (SAVE_FINAL_BINARYIMG_LOCPATTERN)
+	{
+		imwrite("d:\\finalSrcBImg.jpg", srcBImg);
+		imwrite("d:\\finalPtnBImg.jpg", tempGrayImg);
+	}
+
 	matchTemplate(srcBImg, tempGrayImg, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
 	double minValue, maxValue;
@@ -716,8 +760,9 @@ bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, float fMatchThre, in
 		k.width = tempImg.cols;
 		k.height = tempImg.rows;
 
+		//暗场条件下，无需二次验证;明场时，版和片的号码容易混淆，可能需要二次验证;
 		bool bRet = true;
-		if (m_algParams.locpattern_bCheckLastNum)
+		if (m_algParams.locpattern_bCheckLastNum && !bHcPattern)
 			bRet = CheckLocTemp_ByLastNum(srcBImg, tempGrayImg, fMatchThre, k); //最后一位数字要再次确认;
 
 		if (!bRet)

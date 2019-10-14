@@ -44,8 +44,13 @@ typedef struct AlgParam {
 	int   locpattern_bCheckLastNum; //最后一个数字的再次验证;
 	int   locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
 	float locpattern_fRatio;        //最后一个数字的y坐标比率;
-	int   locpattern_nDelta;        //二值化时的补偿;用于左右片亮度差异大时。默认为0.
-	float locpattern_fMatchDegree;  //匹配阈值。默认0.5;
+
+	bool  locpattern_bTwoStageLoc;  //开启二阶段式的检测.仅用于左右片亮度差异太大,Delta值也无法补充时;
+	                                //采用第一次检测到区域后，就把该区域抹掉，再进行第二次检测;
+	int   locpattern_nScDelta;      //二值化时的补偿;用于左右片亮度差异大时。默认为0.
+	int   locpattern_nHcDelta;       
+	float locpattern_fScMatchDegree;  //匹配阈值。默认0.5;
+	float locpattern_fHcMatchDegree;  //匹配阈值。默认0.5;
 
 	//finetune函数;
 	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
@@ -58,8 +63,12 @@ typedef struct AlgParam {
 		locpattern_bCheckLastNum = 0; //默认不进行再次验证;
 		locpattern_bVerticalNum = 1;   //默认竖直方向;
 		locpattern_fRatio = 0.8;
-		locpattern_nDelta = 0;
-		locpattern_fMatchDegree = 0.5;
+
+		locpattern_nScDelta = 0;
+		locpattern_nHcDelta = 0;
+		locpattern_fScMatchDegree = 0.5;
+		locpattern_fHcMatchDegree = 0.5;
+		locpattern_bTwoStageLoc = false;
 
 		finetune_nHcMargin = 0;
 
@@ -96,7 +105,7 @@ public:
 	
 	////////////////////////////通用检测方案///////////////////////////
 	//模板匹配;
-	bool LocateTemplate(Mat srcImg, Mat tempImg, float fMatchThre, int nMaxCount,
+	bool LocateTemplate(Mat srcImg, Mat tempImg, bool bHcPattern, float fMatchThre, int nMaxCount,
 		vector<LocMarker> & vecTempRect);
 
 	//分别用于定位明场/暗场中的特定pattern，pattern图由init传入;

@@ -58,8 +58,11 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg,
 	ap.locpattern_bCheckLastNum = param.locpattern_bCheckLastNum;
 	ap.locpattern_bVerticalNum = param.locpattern_bVerticalNum;
 	ap.locpattern_fRatio  = param.locpattern_fRatio;
-	ap.locpattern_fMatchDegree = param.locpattern_fMatchDegree;
-	ap.locpattern_nDelta = param.locpattern_nDelta;
+	ap.locpattern_bTwoStageLoc = param.locpattern_bTwoStageLoc;
+	ap.locpattern_fScMatchDegree = param.locpattern_fScMatchDegree;
+	ap.locpattern_fHcMatchDegree = param.locpattern_fHcMatchDegree;
+	ap.locpattern_nScDelta = param.locpattern_nScDelta;
+	ap.locpattern_nHcDelta = param.locpattern_nHcDelta;
 
 	ap.finetune_nHcMargin = param.finetune_nHcMargin;
 	ap.refine_nHcThickSize = param.refine_nHcThickSize;
