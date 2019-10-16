@@ -67,6 +67,9 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg,
 	ap.finetune_nHcMargin = param.finetune_nHcMargin;
 	ap.refine_nHcThickSize = param.refine_nHcThickSize;
 	ap.refine_nScThickSize = param.refine_nScThickSize;
+
+	ap.refineHC_nMarginH = param.refineHC_nMarginH;
+	ap.refineHC_nMarginV = param.refineHC_nMarginV;
 	
 	if (!g_mf.Init(_hcImg, _scImg, hpImg, spImg,ap))
 		return ERROR_FAIL_LOADPARM;

@@ -762,11 +762,14 @@ bool CMarkerFinder::LocateTemplate(Mat srcImg, Mat tempImg, bool bHcPattern, flo
 
 		//暗场条件下，无需二次验证;明场时，版和片的号码容易混淆，可能需要二次验证;
 		bool bRet = true;
-		if (m_algParams.locpattern_bCheckLastNum && !bHcPattern)
+		if (m_algParams.locpattern_bCheckLastNum)
 			bRet = CheckLocTemp_ByLastNum(srcBImg, tempGrayImg, fMatchThre, k); //最后一位数字要再次确认;
 
 		if (!bRet)
+		{
+			nMaxCount++; //由于被末位验证剔除一个候选,因此要多加一轮匹配;
 			continue;
+		}
 		else
 		{
 			lm.fConfidence = maxValue;
@@ -1294,8 +1297,8 @@ bool CMarkerFinder::FT_FindBlackMargin(Mat srcImg,Rect &r) {
 
 //重新调整虚框的位置;通过计算相应四条边的灰度值总和，以最小值作为最终的选择;
 bool CMarkerFinder::FT_RefineHollyCross(Mat grayImg, Rect &rectH) {
-	int nPosMargin = 6;  //扩展范围;
-	int nNegMargin = -6;
+	int nHMargin = m_algParams.refineHC_nMarginH;  //扩展范围; H表示水平，V表示垂直;
+	int nVMargin = m_algParams.refineHC_nMarginV;
 	
 	//实际大小与模板大小稍有差异,尽量定位在边框的中心线上,因此要减去边框宽度;
 	rectH.width  -= m_algParams.refine_nHcThickSize;
@@ -1310,8 +1313,8 @@ bool CMarkerFinder::FT_RefineHollyCross(Mat grayImg, Rect &rectH) {
 	int nTotal = 1000000;
 	int nDeltaX = 0;
 	int nDeltaY = 0;
-	for (int nRow = nNegMargin; nRow <= nPosMargin; nRow++)
-	for (int nCol = nNegMargin; nCol <= nPosMargin; nCol++)
+	for (int nRow = -nVMargin; nRow <= nVMargin; nRow++)
+	for (int nCol = -nHMargin; nCol <= nHMargin; nCol++)
 	{
 		//边界合理性判断;
 		int l = rectH.x + nCol;

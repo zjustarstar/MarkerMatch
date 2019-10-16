@@ -59,6 +59,10 @@ typedef struct AlgParam {
 	int refine_nScThickSize;        //精调refine时的实心十字bar厚度大小;
 	int refine_nHcThickSize;        //精调refine时空心十字的厚度大小;
 
+	//用于精调时的虚心十字框的精确定位;
+	int refineHC_nMarginH;         //用于FT_RefineHollyCross函数的上下和左右扩展尺寸;
+	int refineHC_nMarginV;         //默认都是6
+
 	AlgParam() {
 		locpattern_bCheckLastNum = 0; //默认不进行再次验证;
 		locpattern_bVerticalNum = 1;   //默认竖直方向;
@@ -74,6 +78,9 @@ typedef struct AlgParam {
 
 		refine_nHcThickSize = 6;     //空心十字的厚度;
 		refine_nScThickSize = 24;    //实心十字的bar厚度;
+
+		refineHC_nMarginH = 6;
+		refineHC_nMarginV = 6;
 	}
 
 };
