@@ -55,6 +55,10 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg,
 
 	//算法参数;
 	AlgParam ap;
+	ap.nMarkerType      = param.nMarkerType;
+	ap.loccross_fHcThre = param.loccross_fHcThre;
+	ap.loccross_fScThre = param.loccross_fScThre;
+
 	ap.locpattern_bCheckLastNum = param.locpattern_bCheckLastNum;
 	ap.locpattern_bVerticalNum = param.locpattern_bVerticalNum;
 	ap.locpattern_fRatio  = param.locpattern_fRatio;
@@ -118,15 +122,9 @@ extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross,
 
 	Mat srcImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
 
-	double dHitThre;
-	if (bHollowCross)
-		dHitThre = -0.7;  //暗场的参数
-	else
-		dHitThre = -0.7;  //明场的参数;
-
 	//首先检测到有十字的区域;
 	vector<LocMarker> vecMarkerArea;
-	g_mf.LocateCrossAreaByHog(srcImg, dHitThre, bHollowCross, vecMarkerArea);
+	g_mf.LocateCrossAreaByHog(srcImg, bHollowCross, vecMarkerArea);
 
 	//然后进行模板匹配;
 	vector<Rect> vecMarkerRect;

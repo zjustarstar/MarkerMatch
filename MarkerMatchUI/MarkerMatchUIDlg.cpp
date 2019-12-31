@@ -55,11 +55,11 @@ BEGIN_MESSAGE_MAP(CMarkerMatchUIDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_CHECK_GEN_MAKERDETECTOR, &CMarkerMatchUIDlg::OnBnClickedCheckGenMakerdetector)
 	ON_BN_CLICKED(IDC_RADIO_FINETUNE, &CMarkerMatchUIDlg::OnBnClickedRadioFinetune)
 	ON_BN_CLICKED(IDC_RADIO_GENTEMPIMAGE, &CMarkerMatchUIDlg::OnBnClickedRadioGentempimage)
+	ON_BN_CLICKED(IDC_BUTTON_TEMP, &CMarkerMatchUIDlg::OnBnClickedButtonTemp)
 END_MESSAGE_MAP()
 
 
 // CMarkerMatchUIDlg 消息处理程序
-
 BOOL CMarkerMatchUIDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
@@ -86,6 +86,7 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	UpdateData(FALSE);
 
 	//暗/明场template;
+	//目前分成两种类型的标记物;rect和cross;
 	string strTempImg_mask   = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_solidcross.jpg";
 	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_hollowcross.jpg"; 
 	Mat tempImg_h, tempImg_s;
@@ -93,8 +94,17 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	tempImg_s = imread(strTempImg_mask);
 
 	AlgParam ap;
-	ap.finetune_nHcMargin = 0;
-	ap.refine_nScThickSize = 34;//36;  //24;
+	ap.nMarkerType = 0;   //该值设为0时,表示检测十字,1表示rect，上述mask和wafter的标记物图像路径也需要修改;
+	//粗定位参数;
+	ap.loccross_fHcThre = -1.0;
+	
+	//refine参数;
+	ap.finetune_nHcMargin = 6;
+	ap.refineHC_nMarginH = 6;
+	ap.refineHC_nMarginV = 6;
+	ap.locpattern_bTwoStageLoc = false;
+	ap.locpattern_nHcDelta = -10;
+	ap.refine_nScThickSize = 33;//36;  //24;
 	ap.refine_nHcThickSize = 8;  //12; //6
 	//设置检测用的cross marker;
 	if (!m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(),ap))
@@ -305,6 +315,10 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		clock_t s, e;
 		s = clock();
 
+		//test;
+		Rect rrr;
+		//m_mf.FT_RefineWhiteRect(srcImg, rrr); //测试白色方框的定位;
+
 		namedWindow("sourceImage");
 		imshow("sourceImage", srcImg);
 
@@ -434,6 +448,7 @@ void CMarkerMatchUIDlg::FindMarker_withText(Mat srcImg) {
 
 	CMarkerFinder mf;
 	AlgParam ap;
+
 	mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(),ap);
 
 	clock_t s, e;
@@ -504,25 +519,29 @@ void CMarkerMatchUIDlg::FindMarker_General_Temp(Mat srcImg) {
 void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 
 	bool bHollowCross;
-	double dHitThre;
 	if (m_nAlgMode == 0)
 	{
 		bHollowCross = true;
-		dHitThre = -0.7;  //暗场的参数
+
 	}
 	else if (m_nAlgMode == 1) {
 		bHollowCross = false;
-		dHitThre = -0.7;  //明场的参数; //原来-0.5
 	}
 	else
 		return;
+
+	//正方形标记;
+	if (m_mf.m_algParams.nMarkerType == 1){
+		m_mf.m_algParams.loccross_fHcThre = 0.1;
+		m_mf.m_algParams.loccross_fScThre = 0.1;
+	}
 
 	clock_t s, e;
 	s = clock();
 
 	//首先检测到有十字的区域;
 	vector<LocMarker> vecMarkerArea;
-	m_mf.LocateCrossAreaByHog(srcImg, dHitThre, bHollowCross, vecMarkerArea);
+	m_mf.LocateCrossAreaByHog(srcImg, bHollowCross, vecMarkerArea);
 
 	//然后进行模板匹配;
 	vector<Rect> vecMarkerRect;
@@ -649,4 +668,39 @@ void CMarkerMatchUIDlg::OnBnClickedRadioGentempimage()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	m_nAlgMode = 3;
+}
+
+//用于图像翻转，沿着x\y方向翻转，增强数据集;
+void CMarkerMatchUIDlg::OnBnClickedButtonTemp()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	for (int i = 0; i < m_vecFiles.size(); i++)
+	{
+		m_lbFiles.SetCurSel(i);
+
+		CString strFileName;
+		m_lbFiles.GetText(i, strFileName);
+		m_strCurFileName = strFileName;
+		strFileName = m_strFilePath + "\\" + strFileName;
+
+		Mat srcImg = imread(strFileName.GetBuffer(0));
+
+		CString strPureFileName;
+		strPureFileName = m_strCurFileName.Left(m_strCurFileName.GetLength() - 4);
+
+		//水平翻转;
+		CString temp;
+		temp.Format("flipx_%d_",i);
+		temp = temp + strPureFileName + ".jpg";
+		temp = m_strFilePath + "\\" + temp;
+		flip(srcImg, srcImg, 0);
+		imwrite(temp.GetBuffer(0), srcImg);
+
+		//竖直翻转;
+		temp.Format("flipy_%d_", i);
+		temp = temp + strPureFileName + ".jpg";
+		temp = m_strFilePath + "\\" + temp;
+		flip(srcImg, srcImg, 1);
+		imwrite(temp.GetBuffer(0), srcImg);
+	}
 }

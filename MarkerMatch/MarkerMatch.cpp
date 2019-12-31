@@ -17,6 +17,75 @@ using namespace cv;
 #pragma comment(lib,"opencv_world400.lib")
 #endif
 
+//显示模板匹配的结果。同时显示定位框和匹配度文字;
+//bTextUp为true表示文字显示在框上面
+void DrawTempLocResult(Mat srcImg, Scalar color, vector<LocMarker> vecResult, bool bTextUp)
+{
+	//显示最终的marker区域;
+	for (int j = 0; j < vecResult.size(); j++)
+	{
+		Rect k = vecResult[j].rect;
+		rectangle(srcImg, k, color, 8);
+
+		//显示maxvalue
+		char msg[10];
+		sprintf_s(msg, "%.2f", vecResult[j].fConfidence);
+
+		//默认文字显示在框上;
+		int y = (k.y - 10) > 0 ? (k.y - 10) : 0;
+		if (!bTextUp)
+		{
+			y = (k.y + k.height + 50);
+			if (y >= srcImg.rows)
+				y = srcImg.rows - 1;
+		}
+		putText(srcImg, string(msg), cvPoint(k.x, y), FONT_HERSHEY_PLAIN, 4, Scalar(255, 0, 255), 6);
+	}
+}
+void testHog() {
+	//暗/明场template;
+	string strTempImg_mask = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_solidrect.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_hollowrect.jpg";
+	Mat tempImg_h, tempImg_s;
+	tempImg_h = imread(strTempImg_wafter);
+	tempImg_s = imread(strTempImg_mask);
+
+	AlgParam ap;
+	ap.loccross_fHcThre = 0.1;
+	ap.loccross_fScThre = 0.1;
+	ap.nMarkerType = 1;
+	
+	//设置检测用的cross marker;
+	CMarkerFinder mf;
+	if (!mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(), ap))
+		printf("fail to init");
+
+	string strImg = "E:\\0PE测试\\A1正方形框\\暗场\\20191204105533203.jpg";
+	//string strImg = "E:\\0PE测试\\A1正方形框\\亮场\\20191204105603424.jpg";
+	
+	Mat srcImg = imread(strImg);
+
+	bool bHollowCross = true;
+
+	//首先检测到有十字的区域;
+	vector<LocMarker> vecMarkerArea;
+	mf.LocateCrossAreaByHog(srcImg, bHollowCross, vecMarkerArea);
+
+	//然后进行模板匹配;
+	vector<Rect> vecMarkerRect;
+	for (int i = 0; i < vecMarkerArea.size(); i++)
+		vecMarkerRect.push_back(vecMarkerArea[i].rect);
+	vector<LocMarker> vecResult;
+	mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.4, vecResult);
+
+	DrawTempLocResult(srcImg, Scalar(0, 255, 0), vecMarkerArea, false);
+	//最终定位的marker区域，更细致;
+	DrawTempLocResult(srcImg, Scalar(0, 0, 255), vecResult,true);
+
+	namedWindow("img", 0);
+	resizeWindow("img", 1370, 900);
+	imshow("img", srcImg);
+}
 
 void testDirection() {
 	//string strSrcImg = "E:\\MyProject\\MarkerMatch\\数据\\倾斜\\20190814162129447.jpg";
@@ -81,7 +150,7 @@ int findmarker() {
 	vector<LocMarker> vecTempRect;
 	s = clock();
 	CMarkerFinder mf;
-	mf.LocateTemplate(srcImg, tempImg, 0.4, 6, vecTempRect);
+	mf.LocateTemplate(srcImg, tempImg,false, 0.4, 6, vecTempRect);
 	e = clock();
 	cout << "The LocTemp time is: " << (double)(e - s) / CLOCKS_PER_SEC * 1000 << "ms" << endl;
 
@@ -132,8 +201,8 @@ void DrawLocResult(Mat srcImg, Scalar color, vector<LocMarker> vecResult, bool b
 }
 
 void testTemMatch() {
-	string strFile = "E:\\0PE测试\\P12106暗场图片\\1.jpg";
-	string strTempFile = "d:\\13.jpg";
+	string strFile = "D:\\1.jpg";
+	string strTempFile = "D:\\hcpattern.bmp";
 	//string strTempFile = "E:\\MyProject\\MarkerMatch\\template\\temp-2.jpg";
 	Mat srcImg2;
 	Mat srcImg = imread(strFile);
@@ -142,13 +211,34 @@ void testTemMatch() {
 
 	CMarkerFinder mf;
 	AlgParam ap;
-	ap.locpattern_bCheckLastNum = false;
-	ap.locpattern_bVerticalNum = true;
+
+	ap.locpattern_bCheckLastNum = true;
+	ap.locpattern_bVerticalNum = 1;
 	ap.locpattern_fRatio = 0.8;
-	ap.locpattern_nDelta = 20;
+	ap.locpattern_bTwoStageLoc = true;
+	ap.locpattern_nHcDelta = 40;
+	ap.locpattern_fHcMatchDegree = 0.4;
 	mf.Init(tempImg, tempImg, tempImg, tempImg,ap);
 	vector<LocMarker> vecRect;
 	mf.LocatePattern(srcImg, true, 2, vecRect);
+
+	/*
+	if (vecRect.size() == 1)
+	{
+		Mat m = Mat::zeros(cvSize(vecRect[0].rect.width, srcImg.rows), srcImg.type());
+		Mat newSrcImg = srcImg.clone();
+
+		Rect r = vecRect[0].rect;
+		r.y = 0;
+		r.height = srcImg.rows;
+		m.copyTo(newSrcImg(r));
+		imwrite("d:\\newSrcImg.jpg", newSrcImg);
+		vector<LocMarker> vecRect1;
+		mf.LocatePattern(newSrcImg, true, 1, vecRect1);
+
+		if (vecRect1.size() != 0)
+			vecRect.push_back(vecRect1[0]);
+	}*/
 	
 	DrawLocResult(srcImg, Scalar(0, 0, 255), vecRect, true);
 
@@ -249,7 +339,7 @@ int main()
 	imshow("src", src);
 	*/
 	//test_black();
-	testTemMatch();
+	testHog();
 	//testDirection();
 	//startTrain();
 	//startTest(srcImg);

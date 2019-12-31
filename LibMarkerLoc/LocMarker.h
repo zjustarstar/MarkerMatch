@@ -31,12 +31,17 @@ typedef struct MyLines {
 };
 
 typedef struct AlgorithParams {
+	int   nMarkerType;              //标记物类型; 0表示十字，1表示正方形; 
+	//cross粗调定位相关参数;
+	float loccross_fHcThre;        //粗调时的虚十字框阈值;
+	float loccross_fScThre;        //粗调时的实十字框阈值;
+
 	//pattern定位函数相关参数;
-	int  locpattern_bCheckLastNum; //最后一个数字的再次验证;
-	int  locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
+	int   locpattern_bCheckLastNum; //最后一个数字的再次验证;
+	int   locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
 	float locpattern_fRatio;       //最后一个数字的y坐标比率;
 
-	bool  locpattern_bTwoStageLoc;  //开启二阶段式的检测.仅用于左右片亮度差异太大,Delta值也无法补充时;
+	int  locpattern_bTwoStageLoc;  //开启二阶段式的检测.仅用于左右片亮度差异太大,Delta值也无法补充时;
 									//采用第一次检测到区域后，就把该区域抹掉，再进行第二次检测;
 	int   locpattern_nScDelta;      //二值化时的补偿;用于左右片亮度差异大时。默认为0.
 	int   locpattern_nHcDelta;      
@@ -55,12 +60,17 @@ typedef struct AlgorithParams {
 	
 	//默认参数;
 	AlgorithParams() {
+		nMarkerType = 0;
+		//粗调时的参数;
+		loccross_fScThre = -0.9;  //大部分情况下-0.5可以，该值太小了容易引入过多虚假目标;
+		loccross_fHcThre = -0.7;
+
 		//模板匹配时的二次验证：
-		locpattern_bCheckLastNum = false; //默认不进行再次验证;
-		locpattern_bVerticalNum = true;   //默认竖直方向;
+		locpattern_bCheckLastNum = 0; //默认不进行再次验证;
+		locpattern_bVerticalNum = 1;   //默认竖直方向;
 		locpattern_fRatio = 0.8;         
 		//用于模板匹配;
-		locpattern_bTwoStageLoc = false;
+		locpattern_bTwoStageLoc = 0;
 		locpattern_nScDelta = 0;
 		locpattern_nHcDelta = 0;
 		locpattern_fScMatchDegree = 0.5;

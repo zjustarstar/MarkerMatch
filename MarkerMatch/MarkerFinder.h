@@ -40,12 +40,17 @@ typedef struct LocMarker {
 };
 
 typedef struct AlgParam {
+	int   nMarkerType;              //标记物类型; 0表示十字，1表示正方形;    
+
+	//cross粗调定位相关参数;
+	float loccross_fHcThre;        //粗调时的虚十字框阈值;
+	float loccross_fScThre;        //粗调时的实十字框阈值;
 	//pattern定位函数;
 	int   locpattern_bCheckLastNum; //最后一个数字的再次验证;
 	int   locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
 	float locpattern_fRatio;        //最后一个数字的y坐标比率;
 
-	bool  locpattern_bTwoStageLoc;  //开启二阶段式的检测.仅用于左右片亮度差异太大,Delta值也无法补充时;
+	int  locpattern_bTwoStageLoc;  //开启二阶段式的检测.仅用于左右片亮度差异太大,Delta值也无法补充时;
 	                                //采用第一次检测到区域后，就把该区域抹掉，再进行第二次检测;
 	int   locpattern_nScDelta;      //二值化时的补偿;用于左右片亮度差异大时。默认为0.
 	int   locpattern_nHcDelta;       
@@ -64,6 +69,7 @@ typedef struct AlgParam {
 	int refineHC_nMarginV;         //默认都是6
 
 	AlgParam() {
+		nMarkerType = 0;              //默认十字;
 		locpattern_bCheckLastNum = 0; //默认不进行再次验证;
 		locpattern_bVerticalNum = 1;   //默认竖直方向;
 		locpattern_fRatio = 0.8;
@@ -72,7 +78,7 @@ typedef struct AlgParam {
 		locpattern_nHcDelta = 0;
 		locpattern_fScMatchDegree = 0.5;
 		locpattern_fHcMatchDegree = 0.5;
-		locpattern_bTwoStageLoc = false;
+		locpattern_bTwoStageLoc = 0;
 
 		finetune_nHcMargin = 0;
 
@@ -121,9 +127,10 @@ public:
 	bool LocateMarkerByTempMatch(Mat srcImg, bool bHollowCross, vector<Rect> vecMarkerAreaRect,
 		float dMatchThre, vector<LocMarker> &vecMarkerLoc);
 	//通用版的十字检测;
-	bool LocateCrossAreaByHog(Mat srcImg, double dHitThre, bool bHollowCross, vector<LocMarker> & vecFound);
+	bool LocateCrossAreaByHog(Mat srcImg, bool bHollowCross, vector<LocMarker> & vecFound);
 
 	bool FT_RefineSolidCross(Mat grayImg, Rect &rectS);
+	bool FT_RefineWhiteRect(Mat grayImg, Rect &rectW);
 
 	//工具类;
 	void Util_GenTempImg(Mat srcImg, int nDelta, Mat &outImg);
@@ -145,7 +152,6 @@ private:
 	HOGDescriptor m_hcHog;  //for hollowcross detector;
 	HOGDescriptor m_scHog;  //for solidcross detector;
 
-	
 	//用于匹配和检测的,都是灰度图；
 	Mat m_hcMarker;  //暗场hollow cross marker;
 	Mat m_scMarker;  //明场solid cross marker;

@@ -73,4 +73,5 @@ public:
 	CStatic m_sttLocInfo;
 	int m_nGenTempImageDelta;
 	afx_msg void OnBnClickedRadioGentempimage();
+	afx_msg void OnBnClickedButtonTemp();
 };
