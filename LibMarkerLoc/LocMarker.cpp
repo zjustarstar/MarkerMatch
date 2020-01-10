@@ -56,6 +56,7 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg,
 	//算法参数;
 	AlgParam ap;
 	ap.nMarkerType      = param.nMarkerType;
+	ap.loccross_nNum    = param.loccross_nNum;
 	ap.loccross_fHcThre = param.loccross_fHcThre;
 	ap.loccross_fScThre = param.loccross_fScThre;
 
@@ -110,6 +111,10 @@ extern "C" _declspec(dllexport) bool LocatePattern(ImgInfo img, bool bHollowCros
 	return true;
 }
 
+bool MyCompare(LocMarker m1, LocMarker m2) {
+	return (m1.fConfidence > m2.fConfidence);
+}
+
 //检测到的十字丝;
 extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross, int * nSize, LocRect * pRect) {
 
@@ -133,8 +138,14 @@ extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross,
 	vector<LocMarker> vecFound;
 	g_mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.3, vecFound);
 
+	//对结果从大到小进行排序;
+	sort(vecFound.begin(), vecFound.end(), MyCompare);
+
+	//根据参数返回有限的数据;不能超过loccross_nNum;
+	(*nSize) = vecFound.size();
 	int n = vecFound.size();
-	(*nSize) = n;
+	if (n >= g_mf.m_algParams.loccross_nNum)
+		n = g_mf.m_algParams.loccross_nNum;
 	for (int i = 0; i < n; i++)
 	{
 		pRect[i].x = vecFound[i].rect.x;

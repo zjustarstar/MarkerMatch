@@ -33,6 +33,7 @@ typedef struct MyLines {
 typedef struct AlgorithParams {
 	int   nMarkerType;              //标记物类型; 0表示十字，1表示正方形; 
 	//cross粗调定位相关参数;
+	int   loccross_nNum;           //粗调定位返回的目标个数;
 	float loccross_fHcThre;        //粗调时的虚十字框阈值;
 	float loccross_fScThre;        //粗调时的实十字框阈值;
 
@@ -62,6 +63,7 @@ typedef struct AlgorithParams {
 	AlgorithParams() {
 		nMarkerType = 0;
 		//粗调时的参数;
+		loccross_nNum    = 100;      //默认最多返回100个结果;
 		loccross_fScThre = -0.9;  //大部分情况下-0.5可以，该值太小了容易引入过多虚假目标;
 		loccross_fHcThre = -0.7;
 

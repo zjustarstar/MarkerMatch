@@ -43,8 +43,10 @@ typedef struct AlgParam {
 	int   nMarkerType;              //标记物类型; 0表示十字，1表示正方形;    
 
 	//cross粗调定位相关参数;
+	int   loccross_nNum;           //粗调返回的cross个数阈值;
 	float loccross_fHcThre;        //粗调时的虚十字框阈值;
 	float loccross_fScThre;        //粗调时的实十字框阈值;
+
 	//pattern定位函数;
 	int   locpattern_bCheckLastNum; //最后一个数字的再次验证;
 	int   locpattern_bVerticalNum;  //是否是垂直方向的数字版号;
@@ -70,6 +72,10 @@ typedef struct AlgParam {
 
 	AlgParam() {
 		nMarkerType = 0;              //默认十字;
+		//粗调时的参数;
+		loccross_fScThre = -0.9;  //大部分情况下-0.5可以，该值太小了容易引入过多虚假目标;
+		loccross_fHcThre = -0.7;
+
 		locpattern_bCheckLastNum = 0; //默认不进行再次验证;
 		locpattern_bVerticalNum = 1;   //默认竖直方向;
 		locpattern_fRatio = 0.8;
