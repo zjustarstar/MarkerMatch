@@ -1109,7 +1109,113 @@ bool CMarkerFinder::LocateTextArea(Mat srcImg, LocTexParam struLTParam, Mat &bIm
 	return true;
 }
 
-//检测实心十字坐标;
+//检测实心方框标记坐标;
+Rect CMarkerFinder::FT_LocSolidRect(Mat grayImg, Mat bImg, double dthre) {
+
+	//实心检测;
+	Mat resImg;
+	matchTemplate(bImg, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+
+	double minValue, maxValue;
+	Point minLoc, maxLoc;
+
+	Rect r_sc;
+	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+	r_sc.x = maxLoc.x;
+	r_sc.y = maxLoc.y;
+	r_sc.width = m_scMarker.cols;
+	r_sc.height = m_scMarker.rows;
+
+	//在二值图中显示找到的实心十字区域;
+	Mat beforeB = bImg;
+	//rectangle(beforeB, r_sc, Scalar(0, 0, 0));
+	/*namedWindow("before_bimg_S", 0);
+	resizeWindow("before_bimg_S", 500, 500);
+	imshow("before_bimg_S", beforeB);
+	*/
+	return r_sc;
+}
+
+//计算累积直方图，返回统计个数前fThre时对应的bin;
+int CMarkerFinder::FindThreByHist(Mat grayImg, float fThre) {
+
+	//计算灰度直方图;
+	int h = grayImg.rows;
+	int w = grayImg.cols;
+	int nHist[256] = { 0 };
+	for (int r = 0; r < h; r++)
+	{
+		for (int c = 0; c < w; c++)
+		{
+			uchar v1 = grayImg.at<uchar>(r, c);
+			nHist[v1]++;
+		}
+	}
+	//设置为前fThre的灰度值
+	int nThre = fThre * h * w;
+	int nAccum = 0;
+	int i = 0;
+	while (nAccum < nThre)
+	{
+		nAccum = nAccum + nHist[i++];
+	}
+	int nVal = i - 1;
+
+	return nVal;
+}
+
+//精确定位虚心方框的过程中，先去掉实心方框的区域，再进行二值化;
+Rect CMarkerFinder::FT_LocHollyRect(Mat grayImg, Mat bImg, double dthre) {
+
+	//实心检测;
+	Mat resImg;
+	matchTemplate(bImg, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+
+	double minValue, maxValue;
+	Point minLoc, maxLoc;
+
+	Rect r_sc;
+	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+	r_sc.x = maxLoc.x;
+	r_sc.y = maxLoc.y;
+	r_sc.width = m_scMarker.cols;
+	r_sc.height = m_scMarker.rows;
+
+	//扩展；
+	int m = 10;
+	Rect tempRect = r_sc;
+	tempRect.x -= m;
+	tempRect.y -= m;
+	tempRect.width += (m * 2);
+	tempRect.height += (m * 2);
+	if (tempRect.x < 0) tempRect.x = 0;
+	if (tempRect.y < 0) tempRect.y = 0;
+	if (tempRect.x + tempRect.width > grayImg.cols)
+		tempRect.width = grayImg.cols - tempRect.x - 1;
+	if (tempRect.y + tempRect.height > grayImg.rows)
+		tempRect.height = grayImg.rows - tempRect.y - 1;
+	//虚心十字检测前，先去掉白色的实心区域部分
+	Mat tempImg = grayImg;
+	int nVal = FindThreByHist(grayImg, 0.2);
+	tempImg(tempRect).setTo(Scalar(nVal,nVal,nVal));  //实心区域先全部变成颜色值低的;
+	//imwrite("d:\\ImgAfterRect.jpg", tempImg);
+
+	//再次二值化;
+	threshold(tempImg, bImg, 0, 255, THRESH_OTSU);
+	//imwrite("d:\\bImg.jpg", bImg);
+	matchTemplate(bImg, m_hcMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+
+	Rect r_hc;
+	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+	r_hc.x = maxLoc.x;
+	r_hc.y = maxLoc.y;
+	r_hc.width = m_hcMarker.cols;
+	r_hc.height = m_hcMarker.rows;
+
+	return r_hc;
+}
+
+//检测实心十字标记坐标;
 Rect CMarkerFinder::FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre) {
 	double dRatioThre = 0.8;  //有些图片0.6即可;
 
@@ -1171,7 +1277,7 @@ Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
 			break;
 	}
 
-	//实心十字检测;
+	//虚心十字检测;
 	Mat resImg;
 	matchTemplate(bImg, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
@@ -1305,6 +1411,191 @@ bool CMarkerFinder::FT_FindBlackMargin(Mat srcImg,Rect &r) {
 	//用于分析的区域不能小于虚心marker的大小;
 	if (r.width < m_hcMarker.cols || r.height < m_hcMarker.rows)
 		return false;
+
+	return true;
+}
+
+//精调阶段的虚方框调整;
+bool CMarkerFinder::FT_RefineHollyRect(Mat grayImg, Rect &rectH) {
+	int nExtMargin = 20;  //扩展范围;
+	int nShrinkMargin = 0;  //范围稍微往里面收缩一点;
+
+	int nHollyRectSize = m_algParams.refine_nHcThickSize;
+	int nRow, nCol;
+
+	Mat srcImg;
+	if (grayImg.channels() == 3)
+		cvtColor(grayImg, srcImg, CV_BGR2GRAY);
+	else
+		srcImg = grayImg;
+
+	//存储每行/列的一二阶梯度和;
+	Mat xGradImg, yGradImg;
+	xGradImg = Mat::zeros(srcImg.size(), CV_16SC1);
+	yGradImg = Mat::zeros(srcImg.size(), CV_16SC1);
+	for (int rr = 2; rr < srcImg.rows - 2; rr++)
+		for (int cc = 2; cc < srcImg.cols - 2; cc++)
+		{
+			xGradImg.at<short int>(rr, cc) = abs(srcImg.at<uchar>(rr, cc));
+			//xGradImg.at<short int>(rr, cc) += abs(srcImg.at<uchar>(rr, cc - 1) + srcImg.at<uchar>(rr, cc + 1));
+			//xGradImg.at<short int>(rr, cc) += abs(srcImg.at<uchar>(rr, cc - 2) + srcImg.at<uchar>(rr, cc + 2));
+			
+			yGradImg.at<short int>(rr, cc) = abs(srcImg.at<uchar>(rr, cc));
+			//yGradImg.at<short int>(rr, cc) += abs(srcImg.at<uchar>(rr - 1, cc) + srcImg.at<uchar>(rr + 1, cc));
+			//yGradImg.at<short int>(rr, cc) += abs(srcImg.at<uchar>(rr - 2, cc) + srcImg.at<uchar>(rr + 2, cc));
+		}
+
+	int nCenterX = rectH.x + rectH.width / 2;
+	int nCenterY = rectH.y + rectH.height / 2;
+
+	//水平方向的边界侦测
+	int l = rectH.x + nShrinkMargin;
+	int r = rectH.x + rectH.width - 1 - nShrinkMargin;
+	int t = nCenterY - nHollyRectSize / 2 - nExtMargin;
+	int b = nCenterY + nHollyRectSize / 2 + nExtMargin;
+	if (t < 0) t = 0;
+	if (b > srcImg.rows) b = srcImg.rows - 1;
+
+	//计算最大梯度;
+	int nTotal = 0;
+	int nLineY;
+	for (nRow = t; nRow < b - nHollyRectSize; nRow++)
+	{
+		int nSumUpEdge = 0;
+		int nSumDownEdge = 0;
+		for (nCol = l; nCol < r; nCol++)
+		{
+			nSumUpEdge += yGradImg.at<short int>(nRow, nCol);
+			nSumDownEdge += yGradImg.at<short int>(nRow + nHollyRectSize, nCol);
+		}
+
+		int nTemp = nSumDownEdge + nSumUpEdge;
+		if (nTotal < nTemp) {
+			nTotal = nTemp;
+			nLineY = nRow;
+		}
+	}
+
+	//垂直方向的边界侦测
+	l = nCenterX - nHollyRectSize / 2 - nExtMargin;
+	r = nCenterX + nHollyRectSize / 2 + nExtMargin;
+	t = rectH.y + nShrinkMargin;
+	b = rectH.y + rectH.height - 1 - nShrinkMargin;
+	if (l < 0)l = 0;
+	if (r > srcImg.cols) r = srcImg.cols - 1;
+
+	nTotal = 0;
+	int nLineX;
+	for (nCol = l; nCol < r - nHollyRectSize; nCol++)
+	{
+		int nSumLeftEdge = 0;
+		int nSumRightEdge = 0;
+		for (nRow = t; nRow < b; nRow++)
+		{
+			nSumLeftEdge += xGradImg.at<short int>(nRow, nCol);
+			nSumRightEdge += xGradImg.at<short int>(nRow, nCol + nHollyRectSize);
+		}
+
+		int nTemp = nSumLeftEdge + nSumRightEdge;
+		if (nTotal < nTemp) {
+			nTotal = nTemp;
+			nLineX = nCol;
+		}
+	}
+
+	rectH.x = nLineX;
+	rectH.width = nHollyRectSize;
+	rectH.y = nLineY;
+	rectH.height = nHollyRectSize;
+
+	return true;
+}
+
+bool CMarkerFinder::FT_RefineSolidRect(Mat grayImg, Rect &rectS) {
+	int nExtMargin = 5;  //扩展范围;
+	int nShrinkMargin = 0;  //范围稍微往里面收缩一点;
+
+	int nSolidRectSize = m_algParams.refine_nScThickSize;
+	int nRow, nCol;
+
+	Mat srcImg;
+	if (grayImg.channels() == 3)
+		cvtColor(grayImg, srcImg, CV_BGR2GRAY);
+	else
+		srcImg = grayImg;
+
+	//存储每行/列的一二阶梯度和;
+	Mat xGradImg, yGradImg;
+	xGradImg = Mat::zeros(srcImg.size(), CV_16SC1);
+	yGradImg = Mat::zeros(srcImg.size(), CV_16SC1);
+	for (int rr = 2; rr < srcImg.rows - 2; rr++)
+		for (int cc = 2; cc < srcImg.cols - 2; cc++)
+		{
+			xGradImg.at<short int>(rr, cc) = abs(srcImg.at<uchar>(rr, cc - 1) - srcImg.at<uchar>(rr, cc + 1));
+			xGradImg.at<short int>(rr, cc) += abs(srcImg.at<uchar>(rr, cc - 2) - srcImg.at<uchar>(rr, cc + 2));
+
+			yGradImg.at<short int>(rr, cc) = abs(srcImg.at<uchar>(rr - 1, cc) - srcImg.at<uchar>(rr + 1, cc));
+			yGradImg.at<short int>(rr, cc) += abs(srcImg.at<uchar>(rr - 2, cc) - srcImg.at<uchar>(rr + 2, cc));
+		}
+
+	int nCenterX = rectS.x + rectS.width / 2;
+	int nCenterY = rectS.y + rectS.height / 2;
+
+	//水平方向的边界侦测
+	int l = rectS.x + nShrinkMargin;
+	int r = rectS.x + rectS.width - 1 - nShrinkMargin;
+	int t = nCenterY - nSolidRectSize / 2 - nExtMargin;
+	int b = nCenterY + nSolidRectSize / 2 + nExtMargin;
+
+	//计算最大梯度;
+	int nTotal = 0;
+	int nLineY;
+	for (nRow = t; nRow < b - nSolidRectSize; nRow++)
+	{
+		int nSumUpEdge = 0;
+		int nSumDownEdge = 0;
+		for (nCol = l; nCol < r; nCol++)
+		{
+			nSumUpEdge += yGradImg.at<short int>(nRow, nCol);
+			nSumDownEdge += yGradImg.at<short int>(nRow + nSolidRectSize, nCol);
+		}
+
+		int nTemp = nSumDownEdge + nSumUpEdge;
+		if (nTotal < nTemp) {
+			nTotal = nTemp;
+			nLineY = nRow;
+		}
+	}
+
+	//垂直方向的边界侦测
+	l = nCenterX - nSolidRectSize / 2 - nExtMargin;
+	r = nCenterX + nSolidRectSize / 2 + nExtMargin;
+	t = rectS.y + nShrinkMargin;
+	b = rectS.y + rectS.height - 1 - nShrinkMargin;
+
+	nTotal = 0;
+	int nLineX;
+	for (nCol = l; nCol < r - nSolidRectSize; nCol++)
+	{
+		int nSumLeftEdge = 0;
+		int nSumRightEdge = 0;
+		for (nRow = t; nRow < b; nRow++)
+		{
+			nSumLeftEdge += xGradImg.at<short int>(nRow, nCol);
+			nSumRightEdge += xGradImg.at<short int>(nRow, nCol + nSolidRectSize);
+		}
+
+		int nTemp = nSumLeftEdge + nSumRightEdge;
+		if (nTotal < nTemp) {
+			nTotal = nTemp;
+			nLineX = nCol;
+		}
+	}
+
+	rectS.x = nLineX;
+	rectS.width = nSolidRectSize;
+	rectS.y = nLineY;
+	rectS.height = nSolidRectSize;
 
 	return true;
 }
@@ -1626,6 +1917,53 @@ bool CMarkerFinder::FT_AdjustRect(Rect & rH, Rect &rS) {
 	return bAdjust;
 }
 
+//正方形标记的细调;
+bool CMarkerFinder::FinalFinetune_Rect(Mat srcImg, Mat &bImg, Rect &rectH, Rect &rectS) {
+	
+	Mat b;
+	Mat GrayImg;
+
+	if (srcImg.channels() == 3)
+		cvtColor(srcImg, GrayImg, CV_BGR2GRAY);
+	else
+		GrayImg = srcImg;
+
+	double dthre = threshold(GrayImg, b, 0, 255, THRESH_OTSU);
+
+	//查找虚心实心十字坐标;
+	Mat b2 = b.clone();
+	rectS = FT_LocSolidRect(GrayImg, b, dthre);
+	rectH = FT_LocHollyRect(GrayImg, b2, dthre);
+
+	//调整虚心十字框的坐标;
+	Mat tempImg = GrayImg;
+	Rect tempRect = rectS;//适当扩大区域;
+	int m = 5;
+	tempRect.x -= m;
+	tempRect.y -= m;
+	tempRect.width += (m * 2);
+	tempRect.height += (m * 2);
+	if (tempRect.x < 0) tempRect.x = 0;
+	if (tempRect.y < 0) tempRect.y = 0;
+	if (tempRect.x + tempRect.width > GrayImg.cols)
+		tempRect.width = GrayImg.cols - tempRect.x - 1;
+	if (tempRect.y + tempRect.height > GrayImg.rows)
+		tempRect.height = GrayImg.rows - tempRect.y - 1;
+	int nVal = FindThreByHist(GrayImg, 0.2);
+	tempImg(tempRect).setTo(Scalar(nVal, nVal, nVal));  //将实心方框区域设为某个较低的值;
+	//imwrite("d:\\temp.jpg", tempImg);
+	FT_RefineHollyRect(tempImg, rectH);
+
+	rectangle(b2, rectS, Scalar(0, 0, 0), 1);
+	rectangle(b2, rectH, Scalar(0, 0, 0), 1);
+
+	bImg = b2;
+
+	return true;
+
+}
+
+//十字标记的细调;
 bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS) {
 
 	Mat b;

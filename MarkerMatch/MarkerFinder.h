@@ -111,7 +111,10 @@ public:
 	static double GenerateBImg(Mat srcImg, Mat & bImg, GRADTYPE gt = GT_BOTH);
 
 	bool Init(Mat hcMarker, Mat scMarker, Mat hcPattern, Mat scPattern, AlgParam param);
+	//十字标记物的微调;
 	bool FinalFinetune(Mat srcImg, Mat &bImg, Rect &rectH, Rect &rectS);
+	//方框标记物的微调;
+	bool FinalFinetune_Rect(Mat srcImg, Mat &bImg, Rect &rectH, Rect &rectS);
 	
 	//////////////////////////基于文字定位的方案//////////////////////
 	//定位文字区域;
@@ -136,6 +139,9 @@ public:
 	bool LocateCrossAreaByHog(Mat srcImg, bool bHollowCross, vector<LocMarker> & vecFound);
 
 	bool FT_RefineSolidCross(Mat grayImg, Rect &rectS);
+	bool FT_RefineSolidRect(Mat grayImg, Rect &rectS);
+
+	//test
 	bool FT_RefineWhiteRect(Mat grayImg, Rect &rectW);
 
 	//工具类;
@@ -144,15 +150,23 @@ private:
 	static void   FindTextCord(Mat bImg, LocTexParam struLTParam, vector<Rect> & vecRect);
 	//验证定位;
 	bool CheckLocTemp_ByLastNum(Mat srcImg, Mat tempImg, float fMatchThre, Rect r);
-	//精调阶段的定位;
+	//精调阶段的十字定位;
 	Rect FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre);
 	Rect FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre);
 	bool FT_AdjustRect(Rect & rH, Rect &rS);
+	//精调阶段的方框标记定位;
+	Rect FT_LocSolidRect(Mat grayImg, Mat bImg, double dthre);
+	Rect FT_LocHollyRect(Mat grayImg, Mat bImg, double dthre);
 
 	bool FT_FindBoundary(Mat data, int & s, int & e);
 	bool FT_FindBlackMargin(Mat srcImg, Rect &r);
 
+	//十字标记精调阶段的定位微调;
 	bool FT_RefineHollyCross(Mat grayImg, Rect &rectH);
+	//方形标记精调阶段的定位微调;
+	bool FT_RefineHollyRect(Mat grayImg, Rect &rectH);
+
+	int FindThreByHist(Mat grayImg, float fThre);
 
 private:
 	HOGDescriptor m_hcHog;  //for hollowcross detector;

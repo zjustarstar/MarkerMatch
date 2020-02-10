@@ -87,25 +87,23 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 
 	//暗/明场template;
 	//目前分成两种类型的标记物;rect和cross;
-	string strTempImg_mask   = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_solidcross.jpg";
-	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_hollowcross.jpg"; 
+	string strTempImg_mask   = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_solidrect.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_hollowrect.jpg"; 
 	Mat tempImg_h, tempImg_s;
 	tempImg_h = imread(strTempImg_wafter);
 	tempImg_s = imread(strTempImg_mask);
 
 	AlgParam ap;
-	ap.nMarkerType = 0;   //该值设为0时,表示检测十字,1表示rect，上述mask和wafter的标记物图像路径也需要修改;
-	//粗定位参数;
-	ap.loccross_fHcThre = -1.0;
-	
+	ap.nMarkerType = 1;   //该值设为0时,表示检测十字,1表示rect，上述mask和wafter的标记物图像路径也需要修改;
+	ap.loccross_fHcThre = -1.3;
+
 	//refine参数;
 	ap.finetune_nHcMargin = 6;
 	ap.refineHC_nMarginH = 6;
 	ap.refineHC_nMarginV = 6;
 	ap.locpattern_bTwoStageLoc = false;
-	ap.locpattern_nHcDelta = -10;
-	ap.refine_nScThickSize = 33;//36;  //24;
-	ap.refine_nHcThickSize = 8;  //12; //6
+	ap.refine_nScThickSize = 90; // 33;//36;  //24;
+	ap.refine_nHcThickSize = 140; //12; //6
 	//设置检测用的cross marker;
 	if (!m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(),ap))
 		AfxMessageBox("fail to init");
@@ -322,7 +320,11 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		namedWindow("sourceImage");
 		imshow("sourceImage", srcImg);
 
-		m_mf.FinalFinetune(srcImg, b,rH,rS);
+		//十字标记和方框标记处理方式不同;
+		if (m_mf.m_algParams.nMarkerType == 0)
+			m_mf.FinalFinetune(srcImg, b, rH, rS);
+		else
+			m_mf.FinalFinetune_Rect(srcImg, b, rH, rS);
 		rectangle(srcImg, rS, Scalar(0, 0, 255), 1);
 
 		CString strMsg;
@@ -332,11 +334,11 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		m_sttTotalTime.SetWindowTextA(strMsg);
 
 		//画出结果;
-		cv::Point p_sc;  //实心十字中心点;
+		cv::Point p_sc;  //实心中心点;
 		p_sc.x = rS.x + rS.width / 2;
 		p_sc.y = rS.y + rS.height / 2;
 
-		Point p_hc;     //虚心十字中心点
+		Point p_hc;     //虚心中心点
 		p_hc.x = rH.x + rH.width / 2;
 		p_hc.y = rH.y + rH.height / 2;
 
@@ -348,7 +350,10 @@ void CMarkerMatchUIDlg::OnSelchangeListImagefiles()
 		m_sttLocInfo.SetWindowTextA(strMsg);
 
 		if (abs(nDeltaX) <= 5 && abs(nDeltaY) <= 5) {
-			m_mf.FT_RefineSolidCross(srcImg, rS);
+			if (m_mf.m_algParams.nMarkerType == 0)
+				m_mf.FT_RefineSolidCross(srcImg, rS);
+			else
+				m_mf.FT_RefineSolidRect(srcImg, rS);
 			p_sc.x = rS.x + rS.width / 2;
 			p_sc.y = rS.y + rS.height / 2;
 
@@ -514,6 +519,10 @@ void CMarkerMatchUIDlg::FindMarker_General_Temp(Mat srcImg) {
 
 }
 
+bool MyCompare(LocMarker m1, LocMarker m2) {
+	return (m1.fConfidence > m2.fConfidence);
+}
+
 
 //通用的marker检测方法，结合hog和template match;
 void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
@@ -549,6 +558,9 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 		vecMarkerRect.push_back(vecMarkerArea[i].rect);
 	vector<LocMarker> vecResult;
 	m_mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.3, vecResult);
+
+	//对结果进行排序;
+	sort(vecResult.begin(), vecResult.end(), MyCompare);
 
 	CString strMsg;
 	e = clock();
