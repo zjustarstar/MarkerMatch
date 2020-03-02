@@ -603,8 +603,8 @@ void CMarkerMatchUIDlg::SaveResults(Mat srcImg, vector<LocMarker> vecResult) {
 
 	//为了不重名，按照细到秒的时间保存数据;
 	string strFileName;
-	int xMargin = 40;
-	int yMargin = 40;
+	int xMargin = 60;
+	int yMargin = 60;
 	for (int i = 0; i < nSize; i++)
 	{
 		Rect r;

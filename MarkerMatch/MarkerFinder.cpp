@@ -1164,6 +1164,50 @@ int CMarkerFinder::FindThreByHist(Mat grayImg, float fThre) {
 	return nVal;
 }
 
+//仅针对正方形框marker，查找两侧的白色边界。这个白色的边界对外侧的正方形框定位
+//有很大影响;
+Rect CMarkerFinder::FT_FindWhiteMargin(Mat bImg)
+{
+	int h = bImg.rows;
+	int w = bImg.cols;
+	int half_w = w / 2;
+	int THRE = 250;
+
+	//左半边;计算相邻三列的均值,如果比较大，则认为是白色的边;
+	int nLeft = 0;
+	int nRight = w - 1;
+	for (int i = half_w; i>=3; i--)
+	{
+		Mat temp = bImg.colRange(i-3, i);
+		double v1 = mean(temp).val[0];
+		if (v1 > THRE)
+		{
+			nLeft = i;
+			break;
+		}
+	}
+
+	//右半边;
+	for (int i = half_w-1; i <= w-1; i++)
+	{
+		Mat temp = bImg.colRange(i - 3, i);
+		double v1 = mean(temp).val[0];
+		if (v1 > THRE)
+		{
+			nRight = i-3;
+			break;
+		}
+	}
+
+	Rect r;
+	r.x = nLeft;
+	r.y = 0;
+	r.width = nRight - nLeft + 1;
+	r.height = h - 1;
+
+	return r;
+}
+
 //精确定位虚心方框的过程中，先去掉实心方框的区域，再进行二值化;
 Rect CMarkerFinder::FT_LocHollyRect(Mat grayImg, Mat bImg, double dthre) {
 
@@ -1194,20 +1238,33 @@ Rect CMarkerFinder::FT_LocHollyRect(Mat grayImg, Mat bImg, double dthre) {
 		tempRect.width = grayImg.cols - tempRect.x - 1;
 	if (tempRect.y + tempRect.height > grayImg.rows)
 		tempRect.height = grayImg.rows - tempRect.y - 1;
-	//虚心十字检测前，先去掉白色的实心区域部分
+	//虚心方框检测前，先去掉白色的实心区域部分
 	Mat tempImg = grayImg;
 	int nVal = FindThreByHist(grayImg, 0.2);
 	tempImg(tempRect).setTo(Scalar(nVal,nVal,nVal));  //实心区域先全部变成颜色值低的;
-	//imwrite("d:\\ImgAfterRect.jpg", tempImg);
 
 	//再次二值化;
 	threshold(tempImg, bImg, 0, 255, THRESH_OTSU);
-	//imwrite("d:\\bImg.jpg", bImg);
-	matchTemplate(bImg, m_hcMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+	//去除白色边界;
+	Mat tempMat = m_hcMarker.clone();
+	Rect nonWhiteRect = FT_FindWhiteMargin(bImg);
+	//cvtColor(testImg, testImg, CV_GRAY2BGR);
+	//rectangle(testImg, rr, Scalar(255, 0, 0), 1);
+	//imwrite("d:\\test.jpg", testImg);
+
+	//在二值化图中匹配;
+	bImg = bImg(nonWhiteRect);
+	//模板的宽度一定要小于图像的宽度;
+	if (bImg.cols <= tempMat.cols) {
+		int nW = bImg.cols - 1;
+		int nH = int((double)nW * (double)tempMat.rows / (double)tempMat.cols + 0.5);
+		resize(tempMat, tempMat, cvSize(nW,nH));
+	}
+	matchTemplate(bImg, tempMat, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
 	Rect r_hc;
 	minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
-	r_hc.x = maxLoc.x;
+	r_hc.x = maxLoc.x + nonWhiteRect.x;
 	r_hc.y = maxLoc.y;
 	r_hc.width = m_hcMarker.cols;
 	r_hc.height = m_hcMarker.rows;
@@ -1364,6 +1421,7 @@ bool CMarkerFinder::FT_FindBoundary(Mat data, int & s, int & e) {
 	return true;
 }
 
+//仅用于十字架marker
 //查找原图中的黑色边框区域.黑色边框区域会影响算法;
 //返回的是不包含黑色边框的图像区域;
 bool CMarkerFinder::FT_FindBlackMargin(Mat srcImg,Rect &r) {
@@ -1949,10 +2007,11 @@ bool CMarkerFinder::FinalFinetune_Rect(Mat srcImg, Mat &bImg, Rect &rectH, Rect 
 		tempRect.width = GrayImg.cols - tempRect.x - 1;
 	if (tempRect.y + tempRect.height > GrayImg.rows)
 		tempRect.height = GrayImg.rows - tempRect.y - 1;
+	
 	int nVal = FindThreByHist(GrayImg, 0.2);
 	tempImg(tempRect).setTo(Scalar(nVal, nVal, nVal));  //将实心方框区域设为某个较低的值;
-	//imwrite("d:\\temp.jpg", tempImg);
-	FT_RefineHollyRect(tempImg, rectH);
+
+	//FT_RefineHollyRect(tempImg, rectH);
 
 	rectangle(b2, rectS, Scalar(0, 0, 0), 1);
 	rectangle(b2, rectH, Scalar(0, 0, 0), 1);

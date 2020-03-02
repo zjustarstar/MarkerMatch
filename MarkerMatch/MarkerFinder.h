@@ -159,7 +159,10 @@ private:
 	Rect FT_LocHollyRect(Mat grayImg, Mat bImg, double dthre);
 
 	bool FT_FindBoundary(Mat data, int & s, int & e);
+	//十字marker:查找图像边缘的黑色区域;
 	bool FT_FindBlackMargin(Mat srcImg, Rect &r);
+	//正方形marker:查找图像两侧的白色竖条区域;
+	Rect FT_FindWhiteMargin(Mat bImg);
 
 	//十字标记精调阶段的定位微调;
 	bool FT_RefineHollyCross(Mat grayImg, Rect &rectH);

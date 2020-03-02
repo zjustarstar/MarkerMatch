@@ -158,11 +158,33 @@ extern "C" _declspec(dllexport) int FineTune(ImgInfo img, LocRect roiRect, LocRe
 输入输出参数的LocRect结构体中的fConf参数，在本函数中没用，无需理会;
 输入：img表示图像,
 roiRect表示Region of Interest,指大致的空心十字在原图中的位置
+输入：pSRect 为检测到的实心十字框位置;
+输出: pSRect 为修改后的实心十字框位置;
+返回: 返回值 无
+*/
+extern "C" _declspec(dllexport) void FineTune_RefineSRect(ImgInfo img, LocRect roiRect, LocRect * pSRect);
+
+/*
+功能：精调阶段，检测空心矩阵和实心矩阵的位置;
+输入输出参数的LocRect结构体中的fConf参数，在本函数中没用，无需理会;
+输入：img表示图像,
+roiRect表示Region of Interest,指大致的空心矩阵在原图中的位置
+输出: pHRect,Holly Rect,空心矩阵坐标
+pSRect,Solid Rect,实心矩阵坐标
+返回: 返回值为0，表示正常；返回值非零，表示有错误;
+*/
+extern "C" _declspec(dllexport) int FineTune_Rect(ImgInfo img, LocRect roiRect, LocRect * pHRect, LocRect * pSRect);
+
+/*
+功能：精调阶段2，当实心和空心矩阵标记非常靠近时，需要调用该函数，检测实心更加准确的位置;
+输入输出参数的LocRect结构体中的fConf参数，在本函数中没用，无需理会;
+输入：img表示图像,
+roiRect表示Region of Interest,指大致的空心矩阵在原图中的位置
 输入：pSRect 为检测到的实心框位置;
 输出: pSRect 为修改后的实心框位置;
 返回: 返回值 无
 */
-extern "C" _declspec(dllexport) void FineTune_RefineSRect(ImgInfo img, LocRect roiRect, LocRect * pSRect);
+extern "C" _declspec(dllexport) void FineTune_RefineSRect2(ImgInfo img, LocRect roiRect, LocRect * pSRect);
 
 /*
 功能：用于根据输入的图像生成模板图，并保存在chFileName指定的文件中;

@@ -13,11 +13,29 @@ using namespace cv;
 
 CMarkerFinder g_mf;
 
+bool checkTime() {
+	time_t t;
+	t = time(NULL);
+
+	tm pTm;
+	localtime_s(&pTm, &t);
+	int nYear = pTm.tm_year + 1900;
+	int nMonth = pTm.tm_mon + 1;
+
+	if ((nYear > 2020) && (nMonth > 1))
+		return false;
+	else
+		return true;
+}
+
 // 初始化检测算子,以及检测用的各种图像;
 extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg, 
 	                                             ImgInfo hPatternImg, ImgInfo sPatternImg,
 	                                             AlgorithParams param)
 {
+	//if (!checkTime())
+	//	return ERROR_FAIL_LOADPARM; 
+
 	int nType = CV_8UC3;
 	if (hcImg.nChannels == 1)
 		nType = CV_8UC1;
@@ -260,6 +278,7 @@ extern "C" _declspec(dllexport) int FindAlignment(ImgInfo img, int nThre, int * 
 	return nThreshold;
 }
 
+//cross maker的精调;
 extern "C" _declspec(dllexport) int FineTune(ImgInfo img, LocRect roiRect, LocRect * pHRect, LocRect * pSRect) {
 	
 	int nTypes = CV_8UC3;
@@ -301,6 +320,49 @@ extern "C" _declspec(dllexport) int FineTune(ImgInfo img, LocRect roiRect, LocRe
 	return 0;
 }
 
+//Rect marker的精调函数;
+extern "C" _declspec(dllexport) int FineTune_Rect(ImgInfo img, LocRect roiRect, LocRect * pHRect, LocRect * pSRect) {
+
+	int nTypes = CV_8UC3;
+	if (img.nChannels == 1)
+		nTypes = CV_8UC1;
+
+	Mat srcImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
+	int nImgW = srcImg.cols;
+	int nImgH = srcImg.rows;
+
+	//参数查验;
+	if (roiRect.x<0 || roiRect.x>nImgW - 1 ||
+		roiRect.y<0 || roiRect.y>nImgH - 1 ||
+		roiRect.w > nImgW || roiRect.h > nImgH)
+		return -1;
+
+	Rect r;
+	r.x = roiRect.x;
+	r.y = roiRect.y;
+	r.width = roiRect.w;
+	r.height = roiRect.h;
+
+	Mat roiImg = srcImg(r);
+	Mat bImg;  //用于测试的;
+	Rect rH, rS;
+	if (!g_mf.FinalFinetune_Rect(roiImg, bImg, rH, rS))
+		return -2;
+
+	pHRect->x = rH.x;
+	pHRect->y = rH.y;
+	pHRect->w = rH.width;
+	pHRect->h = rH.height;
+
+	pSRect->x = rS.x;
+	pSRect->y = rS.y;
+	pSRect->w = rS.width;
+	pSRect->h = rS.height;
+
+	return 0;
+}
+
+//solid cross marker的第二阶段精调;
 extern "C" _declspec(dllexport) void FineTune_RefineSRect(ImgInfo img, LocRect roiRect, LocRect * pSRect) {
 
 	int nTypes = CV_8UC3;
@@ -327,6 +389,39 @@ extern "C" _declspec(dllexport) void FineTune_RefineSRect(ImgInfo img, LocRect r
 
 	Rect rS;
 	g_mf.FT_RefineSolidCross(roiImg, oriSRect);
+	pSRect->x = oriSRect.x;
+	pSRect->y = oriSRect.y;
+	pSRect->w = oriSRect.width;
+	pSRect->h = oriSRect.height;
+}
+
+//solid rect marker的第二阶段精调;
+extern "C" _declspec(dllexport) void FineTune_RefineSRect2(ImgInfo img, LocRect roiRect, LocRect * pSRect) {
+
+	int nTypes = CV_8UC3;
+	if (img.nChannels == 1)
+		nTypes = CV_8UC1;
+
+	Mat srcImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
+	int nImgW = srcImg.cols;
+	int nImgH = srcImg.rows;
+
+	Rect r;
+	r.x = roiRect.x;
+	r.y = roiRect.y;
+	r.width = roiRect.w;
+	r.height = roiRect.h;
+	Mat roiImg = srcImg(r);
+
+	//原来的SolidCross值;
+	Rect oriSRect;
+	oriSRect.x = pSRect->x;
+	oriSRect.y = pSRect->y;
+	oriSRect.width = pSRect->w;
+	oriSRect.height = pSRect->h;
+
+	Rect rS;
+	g_mf.FT_RefineSolidRect(roiImg, oriSRect);
 	pSRect->x = oriSRect.x;
 	pSRect->y = oriSRect.y;
 	pSRect->w = oriSRect.width;
