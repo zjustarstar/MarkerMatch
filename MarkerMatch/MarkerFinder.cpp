@@ -1245,21 +1245,33 @@ Rect CMarkerFinder::FT_LocHollyRect(Mat grayImg, Mat bImg, double dthre) {
 
 	//再次二值化;
 	threshold(tempImg, bImg, 0, 255, THRESH_OTSU);
-	//去除白色边界;
+	
 	Mat tempMat = m_hcMarker.clone();
-	Rect nonWhiteRect = FT_FindWhiteMargin(bImg);
-	//cvtColor(testImg, testImg, CV_GRAY2BGR);
-	//rectangle(testImg, rr, Scalar(255, 0, 0), 1);
-	//imwrite("d:\\test.jpg", testImg);
+	Rect nonWhiteRect;
+	nonWhiteRect.x = 0;
+	nonWhiteRect.y = 0;
+	nonWhiteRect.width = bImg.cols;
+	nonWhiteRect.height = bImg.rows;
 
-	//在二值化图中匹配;
-	bImg = bImg(nonWhiteRect);
-	//模板的宽度一定要小于图像的宽度;
-	if (bImg.cols <= tempMat.cols) {
-		int nW = bImg.cols - 1;
-		int nH = int((double)nW * (double)tempMat.rows / (double)tempMat.cols + 0.5);
-		resize(tempMat, tempMat, cvSize(nW,nH));
+	//正方形marker，有两侧竖条;
+	if (m_algParams.nMarkerType == 2)
+	{
+		//去除白色边界;
+		nonWhiteRect = FT_FindWhiteMargin(bImg);
+		//cvtColor(testImg, testImg, CV_GRAY2BGR);
+		//rectangle(testImg, rr, Scalar(255, 0, 0), 1);
+		//imwrite("d:\\test.jpg", testImg);
+
+		//在二值化图中匹配;
+		bImg = bImg(nonWhiteRect);
+		//模板的宽度一定要小于图像的宽度;
+		if (bImg.cols <= tempMat.cols) {
+			int nW = bImg.cols - 1;
+			int nH = int((double)nW * (double)tempMat.rows / (double)tempMat.cols + 0.5);
+			resize(tempMat, tempMat, cvSize(nW, nH));
+		}
 	}
+	
 	matchTemplate(bImg, tempMat, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
 	Rect r_hc;
@@ -1316,8 +1328,11 @@ Rect CMarkerFinder::FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre) {
 }
 
 Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
-	double dPhase1_RatioThre = 0.6;  
+	double dPhase1_RatioThre = 0.6;  //用于实心十字检测;
 	double dPhase2_RatioThre = 0.1;  //有些地方是0.05就可以;0.1
+
+	if (m_algParams.bFlag_AfterAL == 1)
+		dPhase2_RatioThre = 0.05;
 
 	int nSize = bImg.rows*bImg.cols;
 	float fRatio = countNonZero(bImg)*1.0 / nSize;
@@ -1334,7 +1349,7 @@ Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
 			break;
 	}
 
-	//虚心十字检测;
+	//实心十字检测;
 	Mat resImg;
 	matchTemplate(bImg, m_scMarker, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
 
@@ -1356,8 +1371,8 @@ Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
 	imshow("HC_phase1Img", beforeB);
 	*/
 
-	//虚心十字检测：
-	bImg(r_sc).setTo(Scalar(255, 255, 255));  //实心区域先全部变成白色;
+	//实心区域先全部变成白色;
+	bImg(r_sc).setTo(Scalar(255, 255, 255));  
 
 	Mat tempV;
 	Mat newTemp;  //实际的空心十字,可能和模板大小稍有差异;
@@ -1369,6 +1384,7 @@ Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
 	newTemp = m_hcMarker(r);
 	bitwise_not(newTemp, tempV);  //空心十字，反色;
 
+    //虚心十字检测：
 	//保证虚心十字区域二值化后有一定数量;
 	int nZeroCount;
 	nZeroCount = nSize - countNonZero(bImg);
@@ -2011,7 +2027,9 @@ bool CMarkerFinder::FinalFinetune_Rect(Mat srcImg, Mat &bImg, Rect &rectH, Rect 
 	int nVal = FindThreByHist(GrayImg, 0.2);
 	tempImg(tempRect).setTo(Scalar(nVal, nVal, nVal));  //将实心方框区域设为某个较低的值;
 
-	//FT_RefineHollyRect(tempImg, rectH);
+	//正方形marker，无两侧竖条;
+	if (m_algParams.nMarkerType == 1)
+		FT_RefineHollyRect(tempImg, rectH);
 
 	rectangle(b2, rectS, Scalar(0, 0, 0), 1);
 	rectangle(b2, rectH, Scalar(0, 0, 0), 1);

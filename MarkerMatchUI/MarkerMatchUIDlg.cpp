@@ -87,23 +87,35 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 
 	//暗/明场template;
 	//目前分成两种类型的标记物;rect和cross;
-	string strTempImg_mask   = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_solidrect.jpg";
-	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_hollowrect.jpg"; 
+	string strTempImg_mask   = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_solidcross.jpg";
+	string strTempImg_wafter = "E:\\MyProject\\MarkerMatch\\MarkerMatch\\x64\\Release\\template\\temp_hollowcross.jpg"; 
 	Mat tempImg_h, tempImg_s;
 	tempImg_h = imread(strTempImg_wafter);
 	tempImg_s = imread(strTempImg_mask);
 
+	//nMarkerType设为0时,表示检测十字,
+	//1表示无两侧竖条的rect，2表示有两侧竖条的rect;
+	//修改nMarkerType后，上述mask和wafter的标记物图像路径也需要修改;
 	AlgParam ap;
-	ap.nMarkerType = 1;   //该值设为0时,表示检测十字,1表示rect，上述mask和wafter的标记物图像路径也需要修改;
-	ap.loccross_fHcThre = -1.3;
+	ap.nMarkerType = 0;   
+	ap.bFlag_AfterAL = 1;
 
 	//refine参数;
 	ap.finetune_nHcMargin = 6;
 	ap.refineHC_nMarginH = 6;
 	ap.refineHC_nMarginV = 6;
 	ap.locpattern_bTwoStageLoc = false;
-	ap.refine_nScThickSize = 90; // 33;//36;  //24;
-	ap.refine_nHcThickSize = 140; //12; //6
+	
+	if (ap.nMarkerType > 0) {
+		ap.loccross_fHcThre = -1.3;  //marker定位时用;
+
+		ap.refine_nScThickSize = 90; // 33;//36;  //24;
+		ap.refine_nHcThickSize = 140; //12; //6
+	}
+	else {
+		ap.refine_nScThickSize = 24; // 33;//36;  //24;
+		ap.refine_nHcThickSize = 6; //12; //6
+	}
 	//设置检测用的cross marker;
 	if (!m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(),ap))
 		AfxMessageBox("fail to init");
@@ -539,8 +551,8 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 	else
 		return;
 
-	//正方形标记;
-	if (m_mf.m_algParams.nMarkerType == 1){
+	//正方形标记;markertype = 1 或者 2
+	if (m_mf.m_algParams.nMarkerType > 0){
 		m_mf.m_algParams.loccross_fHcThre = 0.1;
 		m_mf.m_algParams.loccross_fScThre = 0.1;
 	}
@@ -557,7 +569,7 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 	for (int i = 0; i < vecMarkerArea.size(); i++)
 		vecMarkerRect.push_back(vecMarkerArea[i].rect);
 	vector<LocMarker> vecResult;
-	m_mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.3, vecResult);
+	m_mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.3, vecResult); //默认0.3；
 
 	//对结果进行排序;
 	sort(vecResult.begin(), vecResult.end(), MyCompare);

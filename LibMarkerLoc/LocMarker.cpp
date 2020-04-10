@@ -73,6 +73,7 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg,
 
 	//Ëã·¨²ÎÊý;
 	AlgParam ap;
+	ap.bFlag_AfterAL    = param.bFlag_AfterAL;
 	ap.nMarkerType      = param.nMarkerType;
 	ap.loccross_nNum    = param.loccross_nNum;
 	ap.loccross_fHcThre = param.loccross_fHcThre;

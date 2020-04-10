@@ -42,6 +42,9 @@ typedef struct LocMarker {
 typedef struct AlgParam {
 	int   nMarkerType;              //标记物类型; 0表示十字，1表示正方形;    
 
+	//一些特殊工艺的参数;
+	int   bFlag_AfterAL;           //铝后工艺，会有大量噪点;
+
 	//cross粗调定位相关参数;
 	int   loccross_nNum;           //粗调返回的cross个数阈值;
 	float loccross_fHcThre;        //粗调时的虚十字框阈值;
@@ -72,6 +75,9 @@ typedef struct AlgParam {
 
 	AlgParam() {
 		nMarkerType = 0;              //默认十字;
+		//涉及部分特殊工艺参数;
+		bFlag_AfterAL = 0;
+
 		//粗调时的参数;
 		loccross_fScThre = -0.9;  //大部分情况下-0.5可以，该值太小了容易引入过多虚假目标;
 		loccross_fHcThre = -0.7;
