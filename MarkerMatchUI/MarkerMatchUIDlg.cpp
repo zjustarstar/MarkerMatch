@@ -98,7 +98,7 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 	//修改nMarkerType后，上述mask和wafter的标记物图像路径也需要修改;
 	AlgParam ap;
 	ap.nMarkerType = 0;   
-	ap.bFlag_AfterAL = 1;
+	ap.bFlag_AfterAL = 0; //铝后图片的支持
 
 	//refine参数;
 	ap.finetune_nHcMargin = 6;
@@ -113,8 +113,8 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 		ap.refine_nHcThickSize = 140; //12; //6
 	}
 	else {
-		ap.refine_nScThickSize = 24; // 33;//36;  //24;
-		ap.refine_nHcThickSize = 6; //12; //6
+		ap.refine_nScThickSize = 5; // 33;//36;  //24;
+		ap.refine_nHcThickSize = 1; //12; //6
 	}
 	//设置检测用的cross marker;
 	if (!m_mf.Init(tempImg_h, tempImg_s, Mat::Mat(), Mat::Mat(),ap))
@@ -126,7 +126,6 @@ BOOL CMarkerMatchUIDlg::OnInitDialog()
 // 如果向对话框添加最小化按钮，则需要下面的代码
 //  来绘制该图标。  对于使用文档/视图模型的 MFC 应用程序，
 //  这将由框架自动完成。
-
 void CMarkerMatchUIDlg::OnPaint()
 {
 	if (IsIconic())
@@ -557,6 +556,9 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 		m_mf.m_algParams.loccross_fScThre = 0.1;
 	}
 
+	float fTempMatchThre;
+	fTempMatchThre  = 0.3; //0.3是默认值
+
 	clock_t s, e;
 	s = clock();
 
@@ -569,7 +571,7 @@ void CMarkerMatchUIDlg::FindMarker_General_HogTemp(Mat srcImg) {
 	for (int i = 0; i < vecMarkerArea.size(); i++)
 		vecMarkerRect.push_back(vecMarkerArea[i].rect);
 	vector<LocMarker> vecResult;
-	m_mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.3, vecResult); //默认0.3；
+	m_mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, fTempMatchThre, vecResult); //默认0.3；
 
 	//对结果进行排序;
 	sort(vecResult.begin(), vecResult.end(), MyCompare);

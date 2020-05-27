@@ -588,6 +588,84 @@ bool CMarkerFinder::FindWafterMarkerArea(Mat srcImg, Mat bImg, LocWafterMarkerPa
 	return true;
 }
 
+bool CMarkerFinder::LocatePattern_Seperate(Mat srcImg, int nPos, bool bHcPattern, int nMaxCount, vector<LocMarker> & vecFound)
+{
+	Mat   patternImg;
+	float fMatchDegree;
+	if (bHcPattern)
+	{
+		patternImg = m_hcPattern;
+		fMatchDegree = m_algParams.locpattern_fHcMatchDegree;
+	}
+	else
+	{
+		patternImg = m_scPattern;
+		fMatchDegree = m_algParams.locpattern_fScMatchDegree;
+	}
+
+	if (patternImg.empty())
+		return false;
+
+	Mat resizedTempImg, resizedSrcImg;
+	int nScale = 4;
+	resize(srcImg, resizedSrcImg, cvSize(srcImg.cols / nScale, srcImg.rows / nScale));
+	resize(patternImg, resizedTempImg, cvSize(patternImg.cols / nScale, patternImg.rows / nScale));
+
+	//最多两个,匹配阈值0.5;
+	vector<LocMarker> vecRect;
+	Rect roi;
+	int nScaledPose = nPos / nScale;
+	roi.x = 0;
+	roi.y = 0;
+	roi.width = nScaledPose;
+	roi.height = resizedSrcImg.rows;
+	Mat tempImg = resizedSrcImg(roi);
+	LocateTemplate_Seperate(tempImg, true,resizedTempImg, bHcPattern, fMatchDegree, 1, vecRect);
+	//右侧定位;
+	vector<LocMarker> vecRect_temp;
+	roi.x = nScaledPose;
+	roi.width = resizedSrcImg.cols - nScaledPose;
+	tempImg = resizedSrcImg(roi);
+	LocateTemplate_Seperate(tempImg, false, resizedTempImg, bHcPattern, fMatchDegree, 1, vecRect_temp);
+	for (int j = 0; j < vecRect_temp.size(); j++)
+	{
+		LocMarker lm = vecRect_temp[j];
+		lm.rect.x += nScaledPose;
+		vecRect.push_back(lm);
+	}
+
+	//暗场图左右两边差异实在太大，无法用delta补充时，采用二阶段定位.
+	//此时先检测到一组，然后把该组所在的区域从原图抹掉，再进行第二组检测;
+	if (m_algParams.locpattern_bTwoStageLoc && (vecRect.size() == 1))
+	{
+		//创建一个空区域;
+		Mat m = Mat::zeros(cvSize(vecRect[0].rect.width, resizedSrcImg.rows), resizedSrcImg.type());
+		Mat newSrcImg = resizedSrcImg.clone();
+
+		Rect r = vecRect[0].rect;
+		r.y = 0;
+		r.height = resizedSrcImg.rows;
+		m.copyTo(newSrcImg(r));   //抹掉检测到的所在区域;
+		vector<LocMarker> vecRect1;
+		//最多再检测1个;
+		LocateTemplate(newSrcImg, resizedTempImg, bHcPattern, fMatchDegree, 1, vecRect1);
+
+		if (vecRect1.size() != 0)
+			vecRect.push_back(vecRect1[0]);
+	}
+
+	for (int j = 0; j < vecRect.size(); j++)
+	{
+		vecRect[j].rect.x *= nScale;
+		vecRect[j].rect.y *= nScale;
+		vecRect[j].rect.width *= nScale;
+		vecRect[j].rect.height *= nScale;
+		vecFound.push_back(vecRect[j]);
+	}
+
+	return true;
+}
+
 //定位明场/暗场下的pattern.为了加快速度,可以缩小数倍后再匹配;
 bool CMarkerFinder::LocatePattern(Mat srcImg, bool bHcPattern,int nMaxCount, vector<LocMarker> & vecFound)
 {
@@ -686,6 +764,125 @@ bool CMarkerFinder::CheckLocTemp_ByLastNum(Mat srcImg, Mat tempImg, float fMatch
 		return false;
 	else
 		return true;
+}
+
+bool CMarkerFinder::LocateTemplate_Seperate(Mat srcImg, bool bLeft, Mat tempImg, bool bHcPattern, float fMatchThre, int nMaxCount,
+	vector<LocMarker> & vecTempRect)
+{
+
+	Mat srcGrayImg;
+	Mat tempGrayImg;
+
+	if (srcImg.channels() == 3)
+		cvtColor(srcImg, srcGrayImg, CV_BGR2GRAY);
+	else
+		srcGrayImg = srcImg;
+	if (tempImg.channels() == 3)
+		cvtColor(tempImg, tempGrayImg, CV_BGR2GRAY);
+	else
+		tempGrayImg = tempImg;
+
+	int nDelta;
+	if (bHcPattern)
+	{
+		if (bLeft)
+			nDelta = m_algParams.locpattern_nHcDelta;
+		else
+			nDelta = m_algParams.locpattern_nHcDelta_right;
+	}
+	else {
+		if (bLeft)
+			nDelta = m_algParams.locpattern_nScDelta;
+		else
+			nDelta = m_algParams.locpattern_nScDelta_right;
+	}
+
+	//对二值化图像进行匹配;
+	Mat srcBImg;
+	Mat resImg;
+	double dthre = threshold(srcGrayImg, srcBImg, 0, 255, THRESH_OTSU);
+	cout << "Threshold = " << dthre << endl;
+
+	if (nDelta != 0)
+		threshold(srcGrayImg, srcBImg, dthre + nDelta, 255, THRESH_BINARY);
+
+	if (SAVE_FINAL_BINARYIMG_LOCPATTERN)
+	{
+		if (bLeft){
+			imwrite("d:\\L_finalSrcBImg.jpg", srcBImg);
+		}
+		else {
+			imwrite("d:\\R_finalSrcBImg.jpg", srcBImg);
+			
+		}
+		imwrite("d:\\finalPtnBImg.jpg", tempGrayImg);
+	}
+
+	matchTemplate(srcBImg, tempGrayImg, resImg, CV_TM_CCOEFF_NORMED); //化相关系数匹配法(最好匹配1)
+
+	double minValue, maxValue;
+	Point minLoc, maxLoc;
+	int nSpace = 25;
+
+	Point preMaxLoc;
+	for (int i = 0; i < nMaxCount; i++)
+	{
+		minMaxLoc(resImg, &minValue, &maxValue, &minLoc, &maxLoc);
+		if (maxValue < fMatchThre)
+			continue;
+		cout << "max_value= " << maxValue << endl;
+		cout << "maxLoc_x=" << maxLoc.x << ",maxLoc_y=" << maxLoc.y << endl;
+
+		int startX = maxLoc.x - nSpace;
+		if (startX < 0) startX = 0;
+		int startY = maxLoc.y - nSpace;
+		if (startY < 0) startY = 0;
+		int endX = maxLoc.x + nSpace;
+		if (endX > resImg.cols - 1)
+			endX = resImg.cols - 1;
+		int endY = maxLoc.y + nSpace;
+		if (endY > resImg.rows - 1)
+			endY = resImg.rows - 1;
+
+		//将最高匹配点周围的数据都清空，以免下次匹配还是在附近：
+		Mat temp = Mat::zeros(endX - startX, endY - startY, CV_32FC1);
+		Rect tempR = Rect(startX, startY, temp.cols, temp.rows);
+		temp.copyTo(resImg(tempR));
+
+		LocMarker lm;
+		Rect k;
+		k.x = maxLoc.x;
+		k.y = maxLoc.y;
+		k.width = tempImg.cols;
+		k.height = tempImg.rows;
+
+		//暗场条件下，无需二次验证;明场时，版和片的号码容易混淆，可能需要二次验证;
+		bool bRet = true;
+		if (m_algParams.locpattern_bCheckLastNum)
+			bRet = CheckLocTemp_ByLastNum(srcBImg, tempGrayImg, fMatchThre, k); //最后一位数字要再次确认;
+
+		if (!bRet)
+		{
+			//防止坐标未更新造成的死循环;
+			if (maxLoc != preMaxLoc)
+				nMaxCount++; //由于被末位验证剔除一个候选,因此要多加一轮匹配;
+
+			preMaxLoc = maxLoc;
+
+			continue;
+		}
+		else
+		{
+			lm.fConfidence = maxValue;
+			lm.rect = k;
+			vecTempRect.push_back(lm);
+		}
+
+		preMaxLoc = maxLoc;
+
+	}
+
+	return vecTempRect.size();
 }
 
 
@@ -1286,7 +1483,11 @@ Rect CMarkerFinder::FT_LocHollyRect(Mat grayImg, Mat bImg, double dthre) {
 
 //检测实心十字标记坐标;
 Rect CMarkerFinder::FT_LocSolidCross(Mat grayImg, Mat bImg, double dthre) {
-	double dRatioThre = 0.8;  //有些图片0.6即可;
+	double dRatioThre = 0.8;  //有些图片0.6即可;默认0.8
+
+	//铝后图像中那些比较粗边框的图像...
+	if (m_algParams.bFlag_AfterAL == 1)
+		dRatioThre = 0.7;
 
 	int nSize = bImg.rows*bImg.cols;
 	float fRatio = countNonZero(bImg)*1.0 / nSize;
@@ -1420,7 +1621,7 @@ Rect CMarkerFinder::FT_LocHollyCross(Mat grayImg, Mat bImg, double dthre) {
 //对给定的mat定位其开始和结尾
 bool CMarkerFinder::FT_FindBoundary(Mat data, int & s, int & e) {
 
-	double dThre = 30;  //黑色边框区域的均值阈值;
+	int dThre = m_algParams.finetune_nBlackBgThre;
 
 	int nSize = data.cols;
 	int nStart = 0;
@@ -2051,6 +2252,7 @@ bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS)
 	else
 		GrayImg = srcImg;
 
+
 	Rect newRect;
 	if (!FT_FindBlackMargin(GrayImg, newRect))
 		return false;
@@ -2076,6 +2278,7 @@ bool CMarkerFinder::FinalFinetune(Mat srcImg, Mat &bImg,Rect &rectH,Rect &rectS)
 
 	rectangle(b2, rectS, Scalar(0, 0, 0), 1);
 	rectangle(b2, rectH, Scalar(0, 0, 0), 1);
+
 	
 	bImg = b2;
 

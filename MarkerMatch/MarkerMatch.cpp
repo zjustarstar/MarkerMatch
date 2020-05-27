@@ -201,8 +201,8 @@ void DrawLocResult(Mat srcImg, Scalar color, vector<LocMarker> vecResult, bool b
 }
 
 void testTemMatch() {
-	string strFile = "D:\\1.jpg";
-	string strTempFile = "D:\\hcpattern.bmp";
+	string strFile = "D:\\test.jpg";
+	string strTempFile = "D:\\pattern.bmp";
 	//string strTempFile = "E:\\MyProject\\MarkerMatch\\template\\temp-2.jpg";
 	Mat srcImg2;
 	Mat srcImg = imread(strFile);
@@ -212,15 +212,17 @@ void testTemMatch() {
 	CMarkerFinder mf;
 	AlgParam ap;
 
-	ap.locpattern_bCheckLastNum = true;
+	ap.locpattern_bCheckLastNum = false;
 	ap.locpattern_bVerticalNum = 1;
 	ap.locpattern_fRatio = 0.8;
-	ap.locpattern_bTwoStageLoc = true;
-	ap.locpattern_nHcDelta = 40;
+	ap.locpattern_bTwoStageLoc = false;
+
+	ap.locpattern_nHcDelta = 70;
+	ap.locpattern_nHcDelta_right = -30;
 	ap.locpattern_fHcMatchDegree = 0.4;
 	mf.Init(tempImg, tempImg, tempImg, tempImg,ap);
 	vector<LocMarker> vecRect;
-	mf.LocatePattern(srcImg, true, 2, vecRect);
+	mf.LocatePattern_Seperate(srcImg, 2240, true, 2, vecRect);
 
 	/*
 	if (vecRect.size() == 1)
@@ -339,7 +341,7 @@ int main()
 	imshow("src", src);
 	*/
 	//test_black();
-	testHog();
+	testTemMatch();
 	//testDirection();
 	//startTrain();
 	//startTest(srcImg);

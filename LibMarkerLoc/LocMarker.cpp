@@ -87,7 +87,10 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg,
 	ap.locpattern_fHcMatchDegree = param.locpattern_fHcMatchDegree;
 	ap.locpattern_nScDelta = param.locpattern_nScDelta;
 	ap.locpattern_nHcDelta = param.locpattern_nHcDelta;
+	ap.locpattern_nScDelta_right = param.locpattern_nScDelta_right;
+	ap.locpattern_nHcDelta_right = param.locpattern_nHcDelta_right;
 
+	ap.finetune_nBlackBgThre = param.finetune_nBlackBgThre;
 	ap.finetune_nHcMargin = param.finetune_nHcMargin;
 	ap.refine_nHcThickSize = param.refine_nHcThickSize;
 	ap.refine_nScThickSize = param.refine_nScThickSize;
@@ -101,11 +104,34 @@ extern "C" _declspec(dllexport) int initDetector(ImgInfo hcImg, ImgInfo scImg,
 	return ERROR_NO;
 }
 
+extern "C" _declspec(dllexport) bool LocatePattern_Seperate(ImgInfo img, int nPos, bool bHollowCross, int * nSize, LocRect * pRect)
+{
+	int nTypes = CV_8UC3;
+	if (img.nChannels == 1)
+		nTypes = CV_8UC1;
+
+	Mat tempImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
+	if (tempImg.empty() || img.nH <= 0 || img.nW <= 0)
+		return false;
+
+	vector<LocMarker> vecFound;
+	bool bRet = g_mf.LocatePattern_Seperate(tempImg,nPos,bHollowCross, 2, vecFound);
+	(*nSize) = vecFound.size();
+	for (int i = 0; i < vecFound.size(); i++)
+	{
+		pRect[i].x = vecFound[i].rect.x;
+		pRect[i].y = vecFound[i].rect.y;
+		pRect[i].h = vecFound[i].rect.height;
+		pRect[i].w = vecFound[i].rect.width;
+		pRect[i].fConf = vecFound[i].fConfidence;
+	}
+
+	return true;
+}
+
 //检测到的pattern个数;
 extern "C" _declspec(dllexport) bool LocatePattern(ImgInfo img, bool bHollowCross, int * nSize, LocRect * pRect) {
 	
-	//if (k1 > 5000)
-	//	return false;
 
 	int nTypes = CV_8UC3;
 	if (img.nChannels == 1)
@@ -144,6 +170,14 @@ extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross,
 	if (img.nChannels == 1)
 		nTypes = CV_8UC1;
 
+	float fTempMatchThre = 0.3;
+
+	//铝后图像，噪声很多，只能在亮场在定位空心十字，因此需要修改这几个参数;
+	if (g_mf.m_algParams.bFlag_AfterAL) {
+		g_mf.m_algParams.loccross_fHcThre = -0.95;
+		fTempMatchThre = 0;
+	}
+
 	Mat srcImg(img.nH, img.nW, nTypes, img.pData, img.nStep);
 
 	//首先检测到有十字的区域;
@@ -155,7 +189,7 @@ extern "C" _declspec(dllexport) bool LocateCross(ImgInfo img, bool bHollowCross,
 	for (int i = 0; i < vecMarkerArea.size(); i++)
 		vecMarkerRect.push_back(vecMarkerArea[i].rect);
 	vector<LocMarker> vecFound;
-	g_mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, 0.3, vecFound);
+	g_mf.LocateMarkerByTempMatch(srcImg, bHollowCross, vecMarkerRect, fTempMatchThre, vecFound);
 
 	//对结果从大到小进行排序;
 	sort(vecFound.begin(), vecFound.end(), MyCompare);

@@ -58,12 +58,15 @@ typedef struct AlgParam {
 	int  locpattern_bTwoStageLoc;  //开启二阶段式的检测.仅用于左右片亮度差异太大,Delta值也无法补充时;
 	                                //采用第一次检测到区域后，就把该区域抹掉，再进行第二次检测;
 	int   locpattern_nScDelta;      //二值化时的补偿;用于左右片亮度差异大时。默认为0.
-	int   locpattern_nHcDelta;       
+	int   locpattern_nHcDelta;      //如果采用左右分开方式，则直接表示左侧补偿值;
+	int   locpattern_nScDelta_right;
+	int   locpattern_nHcDelta_right;  //当采用左右分开匹配时,该参数表示右侧的补偿值;
 	float locpattern_fScMatchDegree;  //匹配阈值。默认0.5;
 	float locpattern_fHcMatchDegree;  //匹配阈值。默认0.5;
 
 	//finetune函数;
-	int finetune_nHcMargin;   //用于finetune函数,空心十字的margin;
+	int finetune_nBlackBgThre;   //精调定位时，背景黑色区域的平均亮度值阈值。
+	int finetune_nHcMargin;      //用于finetune函数,空心十字的margin;
 
 	//用于精调refine位置时的参数;
 	int refine_nScThickSize;        //精调refine时的实心十字bar厚度大小;
@@ -93,6 +96,7 @@ typedef struct AlgParam {
 		locpattern_bTwoStageLoc = 0;
 
 		finetune_nHcMargin = 0;
+		finetune_nBlackBgThre = 30; 
 
 		refine_nHcThickSize = 6;     //空心十字的厚度;
 		refine_nScThickSize = 24;    //实心十字的bar厚度;
@@ -135,9 +139,15 @@ public:
 	//模板匹配;
 	bool LocateTemplate(Mat srcImg, Mat tempImg, bool bHcPattern, float fMatchThre, int nMaxCount,
 		vector<LocMarker> & vecTempRect);
+	//模板匹配;左右两侧图分别匹配。bLeft表示左侧图
+	bool LocateTemplate_Seperate(Mat srcImg, bool bLeft,Mat tempImg, bool bHcPattern, float fMatchThre, int nMaxCount,
+		vector<LocMarker> & vecTempRect);
 
 	//分别用于定位明场/暗场中的特定pattern，pattern图由init传入;
 	bool LocatePattern(Mat srcImg, bool bHcPattern, int nMaxCount, vector<LocMarker> & vecFound);
+	//定位pattern，但是预先知道左右两侧的分隔线;nPos表示分隔线的x坐标;
+	bool LocatePattern_Seperate(Mat srcImg, int nPos, bool bHcPattern, int nMaxCount, vector<LocMarker> & vecFound);
+
 	//定位marker具体位置;
 	bool LocateMarkerByTempMatch(Mat srcImg, bool bHollowCross, vector<Rect> vecMarkerAreaRect,
 		float dMatchThre, vector<LocMarker> &vecMarkerLoc);
